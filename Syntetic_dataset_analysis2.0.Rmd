@@ -1,0 +1,431 @@
+---
+title: "Synthetic dataset analysis 2.0"
+output:
+  html_notebook: default
+  pdf_document: default
+---
+# Low  and high cell number simulated from a E17.5 neural cortex dataset (Drop-seq) and hippocampus P0 dataset (10X)
+
+```{r include=FALSE}
+source("../src/functions.R")
+source("../src/cotan_output_functions.R")
+library(scales)
+library(matrixStats)
+library(latex2exp)
+
+```
+
+```{r include=FALSE}
+files = c("sym_E17_cl1_800cs/linear","sym_E17_cl1_4000cs/sqrt","sym_E17_cl1_800cs/sqrt",
+          "sym_E17_cl1_4000cs/linear",
+          "sym_E17_cl6_4000cs/linear","sym_E17_cl6_4000cs/sqrt",
+          "sym_E17_cl6_800cs/linear","sym_E17_cl6_800cs/sqrt",
+          "sym_P0_cl15_800cs/linear","sym_P0_cl15_800cs/sqrt",
+          "sym_P0_cl15_4000cs/linear","sym_P0_cl15_4000cs/sqrt") #
+
+
+nu.tot.plot = data.frame("nu"=double() , "est"=double(), "group"=character(), "cells"=character(), "clusters"=character(), "method"=character())
+lambda.tot.plot = data.frame("lambda_real"=double() , "lambda_est"=double(),"group"=character(), "cells"=character(), "clusters"=character(), "method"=character())
+a_table = data.frame("average"=double(),"sqrt"=double())
+
+for(tt in files ){
+  input_dir = paste("../results/2020.02.09/",tt,"/",sep = "")
+  cl = strsplit(tt, "_")[[1]][3]
+  col.a = strsplit(tt, "/")[[1]][2]
+  
+  if (cl == "cl1") {
+    cond = "single"
+    cl = "H"
+  }else{
+    cond = "multi"
+    cl = "M"
+  }
+  #cl = paste(strsplit(cl, "l")[[1]][2],"cl.", sep = " ")
+  method = strsplit(tt, "\\/|\\_| ")[[1]][2]
+  if(method == "P0"){
+    method = "10X"
+  }else{
+    method = "DSQ"
+  }
+  ncells = strsplit(strsplit(tt, "\\/|\\_| ")[[1]][4],"c")[[1]][1]
+  
+  row.a = paste(method, cl,ncells, sep = '_') 
+  epo = strsplit(tt, "_")[[1]][2]
+  
+  if (epo == "E17") {
+      eta = as.data.frame(fread("../results/2020.01.31/17_sqrt/eta_out17_sqrt.csv", header = T))
+      theta = as.data.frame(fread("../results/2020.01.31/17_sqrt/theta_out17_sqrt.csv", header = T))
+      nu.samples = read.csv("../results/2020.01.31/17_sqrt/nu_out17_sqrt.csv", header = T,row.names = 1)
+      
+  }else if(epo == "P0"){
+      eta = as.data.frame(fread("../results/2020.01.31/P0_average/eta_outP0_average.csv", header = T))
+      theta = as.data.frame(fread("../results/2020.01.31/P0_average/theta_outP0_average.csv", header = T))
+      nu.samples = read.csv("../results/2020.01.31/P0_average/nu_outP0_average.csv", header = T,row.names = 1)
+  }
+  colnames(eta) = eta[1,]
+  rownames(eta) = eta[,1]
+  eta = eta[2:nrow(eta), 2:ncol(eta)]
+  eta = as.data.frame(data.matrix(eta))
+      
+  colnames(theta) = theta[1,]
+  rownames(theta) = theta[,1]
+  theta = theta[2:nrow(theta), 2:ncol(theta)]
+  theta = as.data.frame(data.matrix(theta))
+  cl2 = unique(nu.samples$cluster)
+  cl.perc = vector(length = length(cl2))
+  names(cl.perc) = cl2
+  for (c in cl2) {
+     cl.perc[c] = length(nu.samples$cluster[nu.samples$cluster == c])/length(nu.samples$cluster)
+  }
+  sum(cl.perc)
+  cluster.single = names(which(cl.perc == max(cl.perc)))
+  real_lambda_multi = as.matrix(eta * theta)  %*% diag(cl.perc) 
+  real_lambda_multi = rowSums(real_lambda_multi)
+  real_lambda_single = eta[,cluster.single] * theta[,cluster.single]
+  names(real_lambda_single)= rownames(eta)
+
+  #cl = paste(strsplit(cl, "l")[[1]][2],"cl.", sep = " ")
+  t = strsplit(tt, "/")[[1]][1]
+  lista = load_files2.0(input_dir = input_dir, t = t , s = "Sy2")
+  
+  cells=lista[[2]] 
+  nu_est = lista[[3]]
+  raw_norm = lista[[4]] 
+  tot2 = lista[[5]]
+  
+  lambda_i = lista[[7]]
+  real_nu = lista[[8]]
+  print(paste("real nu", length(real_nu), sep = " "))
+  #dsq.e14ctx = lista[[8]]
+  rm(lista)
+  
+  
+  #print("a table")
+  
+  a_table[row.a,col.a] = sum(tot2$a < 0)/length(tot2$a)*100  
+  
+  #print("dataframe for nu")
+  nu_est = as.array(nu_est$x)
+  to.plot.nu = data.frame("nu"=t(real_nu[2:length(real_nu)]))
+  #print(paste(length(nu_est), dim(to.plot.nu), sep = " "))
+  to.plot.nu$est= nu_est
+  to.plot.nu$group = rep(paste(c(row.a, col.a), collapse = '_'),nrow(to.plot.nu)) 
+  to.plot.nu$cells = rep(ncells,nrow(to.plot.nu)) 
+  to.plot.nu$clusters = rep(cl,nrow(to.plot.nu)) 
+  to.plot.nu$method = rep(col.a,nrow(to.plot.nu)) 
+  
+  #print("dataframe for lambda")
+  lambda_est = as.array(lambda_i$x)
+  lambda_est = as.data.frame(lambda_i)
+  if (cond == "multi") {
+    to.plot.lambda = data.frame("lambda_real"= real_lambda_multi[rownames(cells)],
+                                "lambda_est"=lambda_est[rownames(cells),1])
+  }else if(cond == "single" ){
+    to.plot.lambda = data.frame("lambda_real"= real_lambda_single[rownames(cells)], 
+                                "lambda_est"=lambda_est[rownames(cells),1])
+  }
+  
+  to.plot.lambda$group = rep(paste(c(row.a, col.a), collapse = '_') ,nrow(to.plot.lambda)) 
+  to.plot.lambda$cells = rep(ncells,nrow(to.plot.lambda)) 
+  to.plot.lambda$clusters = rep(cl,nrow(to.plot.lambda)) 
+  to.plot.lambda$method = rep(col.a,nrow(to.plot.lambda)) 
+  
+  print("all dataframe formed")
+  
+  nu.tot.plot = rbind(nu.tot.plot,to.plot.nu) 
+  lambda.tot.plot = rbind(lambda.tot.plot, to.plot.lambda)
+  lambda.tot.plot = lambda.tot.plot[complete.cases(lambda.tot.plot),]
+  
+}
+
+```
+
+```{r}
+mycolours <- c(
+  "DSQ_H_4000_linear"= "#E64B35FF" ,
+  "DSQ_H_800_linear" = "#4DBBD5FF" ,
+  "DSQ_M_4000_linear" = "#F39B7FFF"  ,
+    "DSQ_M_800_linear" = "#00A087FF",
+  "10X_M_800_linear" =  "#3C5488FF" ,
+    "10X_M_4000_linear"= "#8491B4FF" , 
+  "DSQ_H_4000_sqrt"  = "#E64B35B2" ,
+  "DSQ_H_800_sqrt"    ="#4DBBD5B2" ,
+  "DSQ_M_4000_sqrt"   = "#F39B7FB2"  ,
+  "DSQ_M_800_sqrt"    = "#00A087B2" ,
+  "10X_M_800_sqrt"    = "#3C5488B2" ,
+  "10X_M_4000_sqrt" = "#8491B4B2" 
+  
+  
+  )
+
+dodge <- position_dodge(width = 0.8)
+  
+si = 12
+ nu= ggplot(nu.tot.plot,aes(x=cells, y=log(est)-log(nu), fill=group)) +
+    facet_grid(method ~ ., scales = "free")+ 
+    ylim(-0.2,0.2)+
+    geom_violin(color="black", position = dodge)+  
+    #facet_wrap(method ~ cells, scales = "free")+
+    #coord_flip()+
+    scale_fill_manual(values =  mycolours)+
+    xlab(TeX(" $log \\tilde{\\nu} - log \\nu $ "))+ geom_boxplot(width=0.3, outlier.colour=NA, position = dodge) +
+    theme(axis.text.x = element_text(size = si, angle = 0, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF" ),
+        axis.text.y = element_text( size = si, angle = 0, hjust = 1, vjust = .0, face = "plain", colour ="#3C5488FF"),  
+        axis.title.x = element_text( size = si, angle = 0, hjust = .5, vjust = 0, face = "plain", colour ="#3C5488FF"),
+        axis.title.y = element_text( size = si, angle = 0, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF"),
+        legend.title = element_blank(),
+       strip.background = element_rect(fill="#8491B44C"),
+       strip.text.x = element_text(size = 12,colour = "#3C5488FF",face = "plain"),
+        strip.text.y = element_text(size = 12,colour = "#3C5488FF",face = "plain"),
+       axis.title.y.left = element_blank(),
+       #legend.key.height = unit(5, "mm"),
+        legend.text = element_text(color = "#3C5488FF",face ="italic" ),
+        legend.position = "none")  # titl)
+
+nu 
+```
+
+
+```{r}
+dodge= position_dodge(width = 0.7)
+lambda =ggplot(lambda.tot.plot,aes(x=cells, y=log(lambda_est)-log(lambda_real), fill=group)) + 
+  facet_grid(method ~ ., scales = "free")+ 
+    ylim(-0.75,0.75)+
+    geom_violin(color="black", position = dodge)+  
+    #facet_wrap(method ~ cells, scales = "free")+
+    #coord_flip()+
+    scale_fill_manual(values =  mycolours)+
+  xlab(TeX(" $log \\tilde{\\lambda} - log \\lambda $ "))+ geom_boxplot(width=0.2, outlier.colour=NA, position = dodge) +
+  theme(axis.text.x = element_text(size = si, angle = 0, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF" ),
+        axis.text.y = element_text( size = si, angle = 0, hjust = 1, vjust = .0, face = "plain", colour ="#3C5488FF"),  
+        axis.title.x = element_text( size = si, angle = 0, hjust = .5, vjust = 0, face = "plain", colour ="#3C5488FF"),
+        axis.title.y = element_text( size = si, angle = 0, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF"),
+        legend.title = element_blank(),
+       strip.background = element_rect(fill="#8491B44C"),
+       strip.text.x = element_text(size = 12,colour = "#3C5488FF",face = "plain"),
+        strip.text.y = element_text(size = 12,colour = "#3C5488FF",face = "plain"),
+       axis.title.y.left = element_blank(),
+       #legend.key.height = unit(5, "mm"),
+        legend.text = element_text(color = "#3C5488FF",face ="italic" ),
+       legend.position = "right")
+lambda
+```
+Percentage of a < 0 with the two methods:
+
+```{r}
+
+print(a_table)
+```
+
+# P-values plot for one cluster dataset
+
+```{r include=FALSE}
+files = c("sym_E17_cl1_800cs/average","sym_E17_cl1_800cs/sqrt",
+          "sym_E17_cl1_4000cs/sqrt", "sym_E17_cl1_4000cs/average"
+          ) #
+
+p_val.to_plot = data.frame("p_val"=double(),"n"=double(), "group"=character(), "cells"=character())
+for(tt in files ){
+  input_dir = paste("../results/2020.02.09/",tt,"/",sep = "")
+  cl = strsplit(tt, "_")[[1]][3]
+  pref = strsplit(tt, "/")[[1]][1]
+  cl = paste(strsplit(cl, "l")[[1]][2],"cl.", sep = " ")
+  row.a = paste(c(strsplit(tt, "\\/|\\_| ")[[1]][c(2,4)], cl), collapse = '-') 
+  col.a = strsplit(tt, "/")[[1]][2]
+  p_val = as.data.frame(fread(paste(input_dir,"p_value_",pref,".csv.gz",sep = "")))
+  rownames(p_val) = p_val$V1
+  p_val = p_val[,2:ncol(p_val)]
+  p_val = as.data.frame(as.table(as.matrix(p_val)))
+  
+  #p_val = reshape2::melt(p_val)
+  p_val = p_val[,3]
+  p_val = sample(p_val,size = 10**6)
+  
+  p_val = sort(p_val)
+  p_val = as.data.frame(p_val)
+  p_val$n = c(1:nrow(p_val))
+  p_val$n = p_val$n/max(p_val$n)
+  
+  p_val$group= rep(paste(c(col.a,row.a), collapse = '-'), nrow(p_val))
+  p_val$cells= rep(strsplit(tt, "\\/|\\_| ")[[1]][4],nrow(p_val)) 
+  p_val.to_plot = rbind(p_val.to_plot,p_val) 
+}
+```
+
+```{r}
+ggplot(p_val.to_plot, aes(x=n, y=p_val, colour=group))+
+  scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),labels = trans_format("log10", math_format(10^.x))) +
+     scale_y_log10(limits =c(10**-5,1), breaks = trans_breaks("log10", function(x) 10^x),
+              labels = trans_format("log10", math_format(10^.x))) + 
+  geom_abline(slope = 1,linetype="dotted", colour = "darkred")+ 
+  geom_line(size=1) + scale_colour_manual(values =  mycolours)+
+  labs(x = "percentile", y = "p-value" ) + 
+  theme(axis.text.x = element_text(size = 12, angle = 0, hjust = .5, vjust = .5, face = "plain"),
+        axis.text.y = element_text( size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain"),  
+        axis.title.x = element_text( size = 12, angle = 0, hjust = .5, vjust = 0, face = "plain"),
+        axis.title.y = element_text( size = 12, angle = 90, hjust = .5, vjust = .5, face = "plain"),
+        legend.title=element_blank(),legend.position="right",
+        legend.text=element_text(size=12))
+
+```
+
+## GDI
+
+```{r eval=FALSE, include=FALSE}
+val.x = matrix(nrow = nrow(eta),ncol = 3)
+rownames(val.x)=rownames(eta)
+#only the first time to collect the values for x on which calculate the pgamma. First and last column will not change!
+val.x[,1]=0
+val.x[,2]=5
+val.x[,3]=50
+
+#only the first time to collect the values for the pgamma. First and last column will not change!
+val.pgamma = val.x
+val.pgamma[,1] = pgamma(val.pgamma[,1],shape = as.matrix(eta), scale = as.matrix(theta))%*%(as.array(cl.perc))
+val.pgamma[,2] = pgamma(val.pgamma[,2],shape = as.matrix(eta), scale = as.matrix(theta))%*%(as.array(cl.perc))
+val.pgamma[,3] = pgamma(val.pgamma[,3],shape = as.matrix(eta), scale = as.matrix(theta))%*%(as.array(cl.perc))
+#------
+final.x = vector()
+iter = 0
+while(dim(val.x)[1] != 0){
+  iter = iter + 1
+  val.pgamma[,2] = pgamma(val.x[,2],shape = as.matrix(eta[rownames(val.x),]), scale = as.matrix(theta[rownames(val.x),]))%*%(as.array(cl.perc))
+
+  pgammaTF = as.vector(val.pgamma[,2]>0.5)
+  val.x[pgammaTF ,3] =  val.x[pgammaTF ,2]
+  val.x[!pgammaTF ,1] =  val.x[!pgammaTF ,2]
+  val.x[,2]=(val.x[,3]+val.x[,1])/2
+  to.remove = val.x[,3]-val.x[,1] < 0.0000001
+  if(iter %% 10 == 0){
+    print(paste(iter, length(val.x[,2]),length(to.remove[to.remove]),max(val.x[,3]-val.x[,1]), sep = " ") )  
+  }
+  
+  final.x = c(final.x,val.x[,2][to.remove])
+  
+  val.x = val.x[!rownames(val.x) %in% rownames(val.x)[to.remove],]
+  val.pgamma = val.pgamma[rownames(val.pgamma) %in% rownames(val.x),]
+}
+ 
+final.x =final.x[rownames(eta)] # to reorder correctly
+
+stat = abs(1-2*pgamma(final.x,shape = as.matrix(eta), scale = as.matrix(theta))) %*%(as.array(cl.perc))
+
+names(stat)=names(final.x)
+
+
+dist.means = eta*theta
+temp = rowMeans(dist.means)
+temp[temp < 0.01] = 0.01
+dist.means =as.array(rowSds(as.matrix(dist.means))/temp)
+                            
+names(dist.means)= rownames(eta)
+
+new.dist = eta*theta
+temp = rowSums(as.matrix(new.dist) %*% diag(prob.clusters))
+new.dist = sqrt(ncol(eta)/(ncol(eta)-1) * (rowSums(as.matrix(new.dist**2) %*% diag(prob.clusters) )-temp**2) )
+me = rowMeans(eta*theta)
+me[me < 0.01] = 0.01
+
+new.dist = new.dist/me
+```
+
+
+1. For single cluster dataset
+
+```{r include=FALSE}
+
+files = c("sym_E17_cl1_800cs/average","sym_E17_cl1_800cs/sqrt",
+          "sym_E17_cl1_4000cs/sqrt", "sym_E17_cl1_4000cs/average"
+          )
+
+
+quant.p.val.tot1 = data.frame("S"=double(),"perc.0.1"=double(),"sum.raw.norm"=double(),"log.perc.0.1"=double(),"GDI"=double(), "group"=character(), "cells"=character(),"method"=character(),"n"=double())
+for(tt in files ){
+  input_dir = paste("../results/2020.02.09/",tt,"/",sep = "")
+  cl = strsplit(tt, "_")[[1]][3]
+  pref = strsplit(tt, "/")[[1]][1]
+  
+  cl = paste(strsplit(cl, "l")[[1]][2],"cl.", sep = " ")
+  row.a = paste(c(strsplit(tt, "\\/|\\_| ")[[1]][c(2,4)], cl), collapse = '-') 
+   col.a = strsplit(tt, "/")[[1]][2]
+  
+  quant.p.val = GDI_dataframe(pref,input_dir,"Sy2")
+  quant.p.val = quant.p.val[,2:ncol(quant.p.val)]
+  
+  quant.p.val$cells = rep(strsplit(tt, "\\/|\\_| ")[[1]][4],nrow(quant.p.val)) 
+  quant.p.val$clusters = rep(cl,nrow(quant.p.val)) 
+  quant.p.val$method = rep(col.a,nrow(quant.p.val)) 
+  
+  quant.p.val$group= rep(paste(c(col.a,row.a), collapse = '-'), nrow(quant.p.val))
+  quant.p.val = quant.p.val[order(quant.p.val$perc.0.1),]
+  quant.p.val$n = c(1:nrow(quant.p.val))/nrow(quant.p.val)
+  
+  quant.p.val.tot1 = rbind(quant.p.val.tot1,quant.p.val)
+  
+}
+```
+```{r}
+ ggplot(quant.p.val.tot1, aes(x = n, y = GDI, colour = group)) +geom_line(size=1)+#+ geom_hline(yintercept=log (-(log(10**-4))), linetype="dashed", color = "red")
+geom_hline(yintercept=1.5, linetype="dashed", color = "red")+
+  scale_colour_manual(values =  mycolours)+labs(x = "percentile", y = "GDI" )+
+  theme(axis.text.x = element_text( size = 12, angle = 0, hjust = .5, vjust = .5, face = "plain"),
+        axis.text.y = element_text( size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain"),  
+        axis.title.x = element_text( size = 12, angle = 0, hjust = .5, vjust = 0, face = "plain"),
+        axis.title.y = element_text( size = 12, angle = 90, hjust = .5, vjust = .5, face = "plain"),
+        legend.title=element_blank(),legend.position="right",
+        legend.text=element_text(size=12))
+ 
+```
+False positve rate (percentage) using 2.220327(log(-(log(10**-4)))) as threshold.
+
+```{r}
+false.positive = quant.p.val.tot1[quant.p.val.tot1$GDI>log(-(log(10**-4))),]
+f.pos = matrix(ncol = 1,nrow = length(unique(false.positive$group)))
+rownames(f.pos) =unique(false.positive$group)
+for (ll in unique(false.positive$group) ) {
+  f.pos[ll,1] = nrow(false.positive[false.positive$group == ll,])/nrow(quant.p.val.tot1[quant.p.val.tot1$group == ll,])*100
+}
+print(f.pos)
+```
+
+
+
+2. For multicluster dataset
+```{r include=FALSE}
+files = c("sym_E17_cl6_4000cs/average","sym_E17_cl6_4000cs/sqrt",
+          "sym_E17_cl6_800cs/average","sym_E17_cl6_800cs/sqrt",
+          "sym_P0_cl15_800cs/average","sym_P0_cl15_800cs/sqrt",
+          "sym_P0_cl15_4000cs/average","sym_P0_cl15_4000cs/sqrt"
+          ) #
+
+#epo = "E17"
+
+quant.p.val.tot = data.frame("S"=double(),"perc.0.1"=double(),"sum.raw.norm"=double(),"log.perc.0.1"=double(),"GDI"=double(), "group"=character(), "cells"=character(),"method"=character(),"n"=double())
+for(tt in files ){
+  input_dir = paste("../results/2020.02.09/",tt,"/",sep = "")
+  cl = strsplit(tt, "_")[[1]][3]
+  pref = strsplit(tt, "/")[[1]][1]
+  cl = paste(strsplit(cl, "l")[[1]][2],"cl.", sep = " ")
+  row.a = paste(c(strsplit(tt, "\\/|\\_| ")[[1]][c(2,4)], cl), collapse = '-') 
+   col.a = strsplit(tt, "/")[[1]][2]
+  quant.p.val = GDI_dataframe(pref,input_dir,"Sy2")
+  quant.p.val = quant.p.val[,2:ncol(quant.p.val)]
+  
+  quant.p.val$cells = rep(strsplit(tt, "\\/|\\_| ")[[1]][4],nrow(quant.p.val)) 
+  quant.p.val$clusters = rep(cl,nrow(quant.p.val)) 
+  quant.p.val$method = rep(col.a,nrow(quant.p.val)) 
+  
+  quant.p.val$group= rep(paste(c(col.a,row.a), collapse = '-'), nrow(quant.p.val))
+  quant.p.val = quant.p.val[order(quant.p.val$perc.0.1),]
+  quant.p.val$n = c(1:nrow(quant.p.val))/nrow(quant.p.val)
+  
+  quant.p.val.tot = rbind(quant.p.val.tot,quant.p.val)
+  
+}
+```
+
+```{r}
+  
+  
+```
+

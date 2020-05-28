@@ -1,0 +1,355 @@
+---
+title: "Seurat correlation vs cotan heatmap"
+output: html_notebook
+---
+```{r setup, include=FALSE}
+# Comparition between COTAN and Seurat
+library(dplyr)
+source("functions.R")
+source("cotan_output_functions.R")
+library(Seurat)
+library(Matrix)
+library(fitdistrplus)
+library("ggsci")
+library("ggplot2")
+library(ggrepel)
+library("gridExtra")
+library(ggpubr)
+library(scales)
+library(cowplot)
+
+# Neural Progenitor Genes
+NPGs = c("Nes","Vim","Sox2","Sox1","Notch1", "Hes1","Hes5","Hes3","Pax6")
+
+PNGs = c("Map2","Tubb3","Neurod1","Nefm","Nefl","Dcx","Tbr1")
+
+# from Ramsköld, D., Wang, E. T., Burge, C. B., & Sandberg, R. (2009). An abundance of ubiquitously expressed genes revealed by tissue transcriptome sequence data. PLoS Computational Biology, 5(12). https://doi.org/10.1371/journal.pcbi.1000598
+# Constitutive genes
+hk = c("Calm1","Cox6b1","Ppia","Rpl18","Cox7c","Erh","H3f3a","Taf1b","Taf2","Gapdh","Actb","Golph3", "Mtmr12", "Zfr", "Sub1", "Tars", "Amacr") 
+
+ 
+#Layer Identity genes
+LIGs = c("Reln","Lhx5","Cux1","Satb2","Tle1","Mef2c","Rorb","Sox5","Bcl11b","Fezf2","Foxp2")
+
+```
+```{r}
+input_dir = "../storage/cotan/results/mouse_dentate_gyrus/linear/"
+
+t = "E16.5"
+
+data = as.data.frame(fread("../storage/cotan/data/mouse_dentate_gyrus.tab.gz",sep = "\t"))
+rownames(data) = data$cellid
+metadata = read.csv("../storage/cotan/data/metadata_mouse_dentate_gyrus.txt.gz",header = T,sep = "\t")
+
+#set the time point of interest and get, from the metadata, the cell's codes:
+cells.to.get = as.vector(metadata[metadata$characteristics..age == t,]$Sample.name..24185.single.cells.)
+
+pbmc.data  = data[, colnames(data) %in% cells.to.get]
+colnames(pbmc.data)=paste(t,"_",colnames(pbmc.data), sep = "")
+
+cells =  as.data.frame(fread(paste(input_dir,"cells_",t,".csv", sep = "")))
+rownames(cells) = cells$V1
+cells = cells[,2:ncol(cells)]
+#out_dir = "../results/2019.12.14/"
+#load_files(imput_dir = input_dir,t="E16.5",s="H1")
+#colnames(pbmc.data)=paste("E",t,"_",colnames(pbmc.data), sep = "")
+pbmc.data = pbmc.data[, colnames(cells)]
+
+rownames(pbmc.data)[grep("_",rownames(pbmc.data))] =  gsub("_","-",rownames(pbmc.data)[grep("_",rownames(pbmc.data))]) 
+#colnames(pbmc.data)=stringr::str_remove(colnames(pbmc.data), "\\.$")
+#colnames(pbmc.data)[grep(".",colnames(pbmc.data))] =  gsub("."," ",colnames(pbmc.data)[grep(".",colnames(pbmc.data))]) 
+pbmc.data = as(as.matrix(pbmc.data), "sparseMatrix")
+lib.size = colSums(pbmc.data)
+hist(lib.size, prob=TRUE, breaks=145)
+```
+```{r}
+fit <- fitdist(lib.size, "nbinom")
+prob.treshold = qnbinom((1-0.001), size=fit$estimate[1], mu=fit$estimate[2])
+pbmc.data = pbmc.data[,names(lib.size[lib.size<prob.treshold])]
+lib.size = colSums(pbmc.data)
+hist(lib.size, prob=TRUE, breaks=145)
+```
+
+```{r }
+pbmc <- CreateSeuratObject(counts = pbmc.data, project = "hipp_1_E16.5", min.cells = 3, min.features = 200)
+pbmc
+```
+
+```{r}
+pbmc[["percent.mt"]] <- PercentageFeatureSet(pbmc, pattern = "^mt-")
+VlnPlot(pbmc, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+```
+
+```{r}
+plot1 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+CombinePlots(plots = list(plot1, plot2))
+```
+```{r}
+subset(pbmc, subset = nFeature_RNA > 200 & nFeature_RNA < 4000 & percent.mt < 7.5)
+length(pbmc$nFeature_RNA)
+```
+
+```{r}
+plot1 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+CombinePlots(plots = list(plot1, plot2))
+```
+```{r}
+pbmc <- NormalizeData(pbmc)
+```
+
+```{r}
+pbmc[["RNA"]]@data[1:10,1:10]
+```
+
+Code to produce the heatmap of Seurat correlation matrix vs cotan heatmap on selected genes.
+```{r}
+seurat.data = pbmc[["RNA"]]@data
+seurat.data.cor = cor(t(as.matrix(seurat.data)), method = "pearson")
+#write.csv(seurat.data.cor, file = "../results/2019.12.16/E16.5_hipp_Seurat_correlations.csv" )
+
+partial.coex = seurat.data.cor[rownames(seurat.data.cor) %in% c(NPGs,PNGs,hk),colnames(seurat.data.cor) %in% c(NPGs,PNGs,hk)]
+diag(partial.coex) = 0
+
+#figur e <- ggarrange(p1, p4, p3,p2,
+ #                   labels = c("A", "B", "C","D"),
+  #                  ncol = 2, nrow = 2)
+
+```
+
+```{r}
+my_theme =theme(strip.text.x = element_text(size = 11, colour = "#3C5488FF"),
+    axis.text.y.left = element_blank(),
+    strip.background = element_rect(fill="#8491B44C"),
+        axis.title.x = element_text( size = 11, angle = 0, hjust = .5, vjust = 0, face = "plain"),
+    axis.text.x = element_text(angle=90,hjust=1,vjust=.3, size = 10),
+    axis.title.y.left = element_blank(),
+    axis.title.x.bottom  = element_blank(),
+        legend.title=element_blank(),
+    legend.key.height = unit(2, "mm"),
+    legend.position="bottom")
+
+partial.coex = reshape2::melt(partial.coex)
+colnames(partial.coex) = c("g1","g2","corr")
+
+partial.coex$g1 <- factor(partial.coex$g1, c(NPGs,hk,PNGs))
+partial.coex$g2 <- factor(partial.coex$g2, c(NPGs,hk,PNGs))
+
+partial.coex$gr = with(partial.coex, ifelse(partial.coex$g1 %in% NPGs, "NPGs",
+                                         ifelse(partial.coex$g1 %in% PNGs,"PNGs" ,
+                                                ifelse(partial.coex$g1 %in% hk,"CGs" ,
+                                                        "normal")))) 
+
+partial.coex$gr = factor(partial.coex$gr, levels=c("NPGs","CGs","PNGs"))
+
+  S = ggplot(partial.coex) + 
+  geom_tile(aes(x=g1,y=factor(g2, 
+       levels = rev(levels(factor(g2)))), fill = corr),colour = "black", show.legend = TRUE) +
+#  facet_grid( g1 ~ g2  ,scales = "free", space = "free") + 
+    scale_fill_gradient2(mid = "white",limits=c(-0.61, 0.61),low = "#E64B35FF", high = "#3C5488FF",oob=squish,breaks=c(-0.5,0,0.5))+
+    facet_grid(. ~ gr, margins=F, space = "free", scales = "free", )+
+  #scale_fill_gradient2(low = "darkred", mid = "white",  high = "darkblue", midpoint = 0,na.value = "grey80", space = "Lab", guide = "colourbar", aesthetics = "fill", limits = lim_coex, oob=scales::squish)+ theme(legend.position="bottom")+
+  my_theme#legend.title = element_blank(),
+  S
+```
+
+```{r}
+load_data3.0(input_dir, cond = t, genes = c(NPGs,PNGs,hk), prefix = "p_value_")
+n_cells = ncol(cells)
+# COTAN: after loading in memeory the coex matrix 
+partial.coex.cotan = coex_E16.5[rownames(coex_E16.5) %in% c(NPGs,PNGs,hk),colnames(coex_E16.5) %in% c(NPGs,PNGs,hk)]
+partial.pval.cotan = p_value_E16.5[rownames(p_value_E16.5) %in% c(NPGs,PNGs,hk),colnames(p_value_E16.5) %in% c(NPGs,PNGs,hk)]
+
+partial.coex.cotan = partial.coex.cotan/sqrt(n_cells)
+
+#partial.pval.cotan = partial.pval.cotan <= 0.05
+#partial.coex.cotan[!partial.pval.cotan] <- 0
+
+  partial.coex.cotan = reshape2::melt(as.matrix(partial.coex.cotan))
+  colnames(partial.coex.cotan) = c("g1","g2","coex")
+  for (n in c(1:nrow(partial.coex.cotan))) {
+    if (partial.coex.cotan[n,"g1"] == partial.coex.cotan[n,"g2"]) {
+      partial.coex.cotan[n,"coex"]=0
+    }
+      
+  }
+  
+  partial.coex.cotan$g1 <- factor(partial.coex.cotan$g1, c(PNGs,hk,NPGs))
+  partial.coex.cotan$g2 <- factor(partial.coex.cotan$g2, c(NPGs,hk,PNGs))
+  
+  
+partial.coex.cotan$gr = with(partial.coex.cotan, ifelse(partial.coex.cotan$g1 %in% NPGs, "NPGs",
+                                         ifelse(partial.coex.cotan$g1 %in% PNGs,"PNGs" ,
+                                                ifelse(partial.coex.cotan$g1 %in% hk,"CGs" ,
+                                                        "normal")))) 
+
+partial.coex.cotan$gr = factor(partial.coex.cotan$gr, levels=c("NPGs","CGs","PNGs"))
+
+C = ggplot(partial.coex.cotan,aes(x=g1,y=factor(g2, 
+       levels = rev(levels(factor(g2)))), fill = coex)) +
+  geom_tile(colour = "black", show.legend = TRUE) +
+  #  facet_grid( g1 ~ g2  ,scales = "free", space = "free") + 
+  facet_grid(. ~ gr, margins=F, space = "free", scales = "free", )+
+  scale_fill_gradient2(mid = "white",limits=c(round(min(partial.coex.cotan$coex)+0.05,digits = 1), round(max(partial.coex.cotan$coex)-0.05,digits = 1)),low = "#E64B35FF", high = "#3C5488FF",breaks=c(-0.5,0,0.5),oob=squish)+ #
+      theme(#legend.title = element_blank(),
+    #strip.text.x = element_text(color = "red"),
+    #axis.text.y = element_text(color = ),
+        strip.background = element_rect(fill="#8491B44C"),
+        strip.text.x = element_text(size = 11, colour = "#3C5488FF"),
+    axis.text.y = element_text( size = 10, angle = 0, hjust = 0, vjust = .5, face = "plain"),  
+    axis.title.x = element_text( size = 10, angle = 0, hjust = .5, vjust = 0, face = "plain"),
+    axis.text.x = element_text(angle=90,hjust=1,vjust=.3, size = 10),
+    axis.title.y.left = element_blank(),
+    axis.title.x.bottom  = element_blank(),
+    legend.title=element_blank(),
+    legend.position="bottom",
+    legend.key.height = unit(2, "mm")
+  )
+
+
+part1 = ggdraw() +
+  draw_plot(C, x = .0, y = 0, width = .52, height = 0.95) +
+  draw_plot(S, x = .53, y = 0, width = .47, height = .95) +
+  draw_plot_label(label = c("A", "B","Figure 1"), size = 12,
+                  x = c(0.01, 0.515, -0.025), y = c(0.95, 0.95, 1)) 
+  
+
+part1
+C
+```
+
+```{r}
+
+si = 12
+
+input_dir = "../storage/cotan/results/mouse_dentate_gyrus/linear/"
+quant.p = GDI_dataframe(t,input_dir,"H1")
+
+
+quant.p$highlight = with(quant.p, ifelse(rownames(quant.p) %in% NPGs, "NPGs",
+                                                 ifelse(rownames(quant.p) %in% hk,"Constitutive" ,
+                                                       # ifelse(rownames(quant.p) %in% LIGs,"LIGs" ,
+                                                               ifelse(rownames(quant.p) %in% PNGs,"PNGs" , "normal"))))#) 
+
+textdf <- quant.p[rownames(quant.p) %in% c(NPGs,hk,PNGs), ]
+mycolours <- c("Constitutive" = "#00A087FF","NPGs"="#DC0000B2","PNGs"="#ff6600","normal" = "#8491B4B2")
+#"LIGs"="#7E6148B2",
+
+f1 = ggplot(subset(quant.p,highlight == "normal" ), aes(x=sum.raw.norm, y=GDI)) +  geom_point(alpha = 0.1, color = "#8491B4B2", size=2.5)
+
+GDI_plot = f1 +  geom_point(data = subset(quant.p,highlight != "normal"  ), aes(x=sum.raw.norm, y=GDI, colour=highlight),size=2.5,alpha = 1) +
+  geom_hline(yintercept=quantile(quant.p$GDI)[4], linetype="dashed", color = "darkblue") +
+  geom_hline(yintercept=quantile(quant.p$GDI)[3], linetype="dashed", color = "darkblue") +
+ # geom_hline(yintercept=1.5, linetype="dotted", color = "red", size= 0.5) +
+  scale_color_manual("Status", values = mycolours)  +
+  scale_fill_manual("Status", values = mycolours)  +
+  xlab("log normalized counts")+ylab("GDI")+
+  geom_label_repel(data =textdf , aes(x=sum.raw.norm, y=GDI, label = rownames(textdf),fill=highlight),
+                   label.size = NA, 
+                   alpha = 0.5, 
+                   direction ="both",
+                   na.rm=TRUE,
+                   seed = 1234) +
+  geom_label_repel(data =textdf , aes(x=sum.raw.norm, y=GDI, label = rownames(textdf)),
+                   label.size = NA, 
+                   segment.color = 'black',
+                   segment.size = 0.5,
+                   direction = "both",
+                   alpha = 1, 
+                   na.rm=TRUE,
+                   fill = NA,
+                   seed = 1234) +
+  theme(axis.text.x = element_text(size = si, angle = 0, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF" ),
+        axis.text.y = element_text( size = si, angle = 0, hjust = 0, vjust = .5, face = "plain", colour ="#3C5488FF"),  
+        axis.title.x = element_text( size = si, angle = 0, hjust = .5, vjust = 0, face = "plain", colour ="#3C5488FF"),
+        axis.title.y = element_text( size = si, angle = 90, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF"),
+        legend.title = element_blank(),
+        legend.text = element_text(color = "#3C5488FF",face ="italic" ),
+        legend.position = "bottom")  # titl)
+  
+legend <- cowplot::get_legend(GDI_plot)
+
+GDI_plot =GDI_plot + theme(
+        legend.position = "none") 
+
+GDI_plot
+```
+
+```{r}
+pbmc <- FindVariableFeatures(pbmc, selection.method = "vst", nfeatures = 2000)
+top10 <- head(VariableFeatures(pbmc), 15)
+
+# plot variable features with and without labels
+plot1 <- VariableFeaturePlot(pbmc)
+plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+#CombinePlots(plots = list(plot1, plot2))
+plot2
+```
+```{r}
+seurat.data = plot1$data
+
+seurat.data$highlight = with(seurat.data, ifelse(rownames(seurat.data) %in% NPGs, "NPGs",
+                                                 ifelse(rownames(seurat.data) %in% hk,"Constitutive" ,
+                                                       # ifelse(rownames(seurat.data) %in% LIGs,"LIGs" ,
+                                                               ifelse(rownames(seurat.data) %in% PNGs,"PNGs" , "normal"))))#) 
+
+seurat.data$mean = log(seurat.data$mean)
+seurat.data$variance.standardized = log(seurat.data$variance.standardized)
+
+textdf <- seurat.data[rownames(seurat.data) %in% c(NPGs,hk,PNGs), ]
+#mycolours <- c("Constitutive" = "#00A087FF","NPGs"="#E64B35FF","PNGs"="#F39B7FFF","normal" = "#8491B4B2")
+#"LIGs"="#7E6148B2",
+
+f1 = ggplot(subset(seurat.data,highlight == "normal" ), aes(x = mean, y = variance.standardized)) +  geom_point(alpha = 0.1, color = "#8491B4B2", size=2.5)
+
+global_seur = f1 +  geom_point(data = subset(seurat.data,highlight != "normal"  ), aes(x = mean, y =variance.standardized, colour=highlight),size=2.5,alpha = 0.8) +
+  geom_hline(yintercept=quantile(seurat.data$variance.standardized)[4], linetype="dashed", color = "darkblue") +
+  geom_hline(yintercept=quantile(seurat.data$variance.standardized)[3], linetype="dashed", color = "darkblue") + scale_color_manual("Status", values = mycolours)  +
+  scale_fill_manual("Status", values = mycolours)  +
+  xlab("log of mean expression")+ylab("log variance standardized ")+
+  geom_label_repel(data =textdf , aes(x = mean, y = variance.standardized, label = rownames(textdf),fill=highlight),
+                   label.size = NA, 
+                   alpha = 0.5, 
+                   direction ="both",
+                   na.rm=TRUE,
+                   seed = 1234) +
+  geom_label_repel(data =textdf , aes(x = mean, y = variance.standardized, label = rownames(textdf)),
+                   label.size = NA, 
+                   segment.color = 'black',
+                   segment.size = 0.5,
+                   direction = "both",
+                   alpha = 0.8, 
+                   na.rm=TRUE,
+                   fill = NA,
+                   seed = 1234) +
+  theme(axis.text.x = element_text(size = si, angle = 0, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF" ),
+        axis.text.y = element_text( size = si, angle = 0, hjust = 0, vjust = .5, face = "plain", colour ="#3C5488FF"),  
+        axis.title.x = element_text( size = si, angle = 0, hjust = .5, vjust = 0, face = "plain", colour ="#3C5488FF"),
+        axis.title.y = element_text( size = si, angle = 90, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF"),
+        legend.title = element_blank(),
+        legend.text = element_text(color = "#3C5488FF",face ="italic" ),
+       legend.position = "none")  # titl)
+  
+
+global_seur
+```
+
+```{r}
+library(cowplot)
+#library(gridGraphics)
+
+part_2 = ggdraw() +
+  draw_plot(GDI_plot, x = .0, y = 0, width = .5, height = 1) +
+  draw_plot(global_seur, x = .5, y = 0, width = .5, height = 1) +
+  draw_plot_label(label = c("C", "D"), size = 12,
+                  x = c(0, 0.5), y = c(1, 1)) 
+  
+fig1 = ggdraw() +
+  draw_plot(part1, x = .0, y = 0.48, width = 1, height = 0.5) +
+  draw_plot(part_2, x = .0, y = 0.02, width = 1, height = 0.46) +
+  draw_plot(legend, x = .25, y = 0, width = 0.5, height = 0.02) 
+
+fig1
+```
+

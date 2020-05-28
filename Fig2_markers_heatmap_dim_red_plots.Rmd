@@ -1,0 +1,689 @@
+---
+title: "Code to produce the marker heatmap and the dimensionaly reduced plots"
+output: html_notebook
+---
+```{r}
+source("../src/cotan_output_functions.R")
+library(ComplexHeatmap)
+library(circlize)
+library(MASS)
+library(cowplot)
+library(matrixStats)
+library(ggrepel)
+library(Rtsne)
+library(ggalt)
+#library(cluster)
+library(factoextra)
+library(dendextend)
+
+```
+
+## Genes marker groupped heat map
+
+Done by square root funcion
+
+```{r}
+#load_data3.0(dir = "../results/2019.12.05/", cond = 17,genes = c("Satb2","Bcl11b","Sox5","Reln","Rorb") ,prefix = "p_value_" )
+```
+
+Or by linear function
+
+```{r}
+load_data3.0(dir = "../storage/cotan/results/mouse1/linear/", cond = "E17.5",genes = c("Satb2","Bcl11b","Sox5","Reln") ,prefix = "p_value_" )
+```
+
+
+```{r}
+pos.link.Satb2 = rownames(p_value_E17.5[p_value_E17.5$Satb2 < 0.0001,])[rownames(p_value_E17.5[p_value_E17.5$Satb2 < 0.0001,]) %in% rownames(coex_E17.5[coex_E17.5$Satb2 >= 0,])] 
+pos.link.Bcl11b = rownames(p_value_E17.5[p_value_E17.5$Bcl11b < 0.001,])[rownames(p_value_E17.5[p_value_E17.5$Bcl11b < 0.001,]) %in% rownames(coex_E17.5[coex_E17.5$Bcl11b > 0,])] 
+#pos.link.Rorb = rownames(p_value_E17.5[p_value_E17.5$Rorb < 0.001,])[rownames(p_value_E17.5[p_value_E17.5$Rorb < 0.001,]) %in% rownames(coex_E17.5[coex_E17.5$Rorb > 0,])] 
+pos.link.Reln = rownames(p_value_E17.5[p_value_E17.5$Reln < 0.0001,])[rownames(p_value_E17.5[p_value_E17.5$Reln < 0.0001,]) %in% rownames(coex_E17.5[coex_E17.5$Reln > 0,])]
+
+pos.link.Sox5 = rownames(p_value_E17.5[p_value_E17.5$Sox5 < 0.0005,])[rownames(p_value_E17.5[p_value_E17.5$Sox5 < 0.0005,]) %in% rownames(coex_E17.5[coex_E17.5$Sox5 > 0,])] 
+
+cl.genes = data.frame("gene"=pos.link.Reln,"cl"="Reln")
+
+cl.genes = rbind(cl.genes,data.frame("gene"=pos.link.Satb2,"cl"="Satb2"),data.frame("gene"=pos.link.Sox5,"cl"="Sox5"),
+                 #data.frame("gene"=pos.link.Rorb,"cl"="Rorb"),
+                 data.frame("gene"=pos.link.Bcl11b,"cl"="Bcl11b"))
+
+
+cl.genes$gene = as.vector(cl.genes$gene)
+
+all.genes.to.plot = unique(c(pos.link.Bcl11b,pos.link.Reln,pos.link.Sox5,pos.link.Satb2))
+                             #, pos.link.Rorb))
+```
+
+```{r}
+#library(circlize)
+#load_data3.0(dir = "../results/2019.12.05/", cond = 17,genes = all.genes.to.plot ,prefix = "p_value_" )
+```
+
+Or by linear function
+```{r}
+load_data3.0(dir = "../storage/cotan/results/mouse1/linear/", cond = "E17.5",genes = all.genes.to.plot ,prefix = "p_value_" )
+```
+
+```{r}
+coex_17.2 = coex_E17.5[rownames(coex_E17.5) %in% colnames(coex_E17.5),]
+coex_17.2 = coex_17.2[,colnames(coex_17.2) %in% rownames(coex_17.2)]
+cl.genes = cl.genes[cl.genes$gene %in% colnames(coex_17.2),]
+
+reorder_idx_col <- match(cl.genes$gene,colnames(coex_17.2))
+reorder_idx_row <- match(cl.genes$gene,rownames(coex_17.2))
+
+to.plot <- coex_17.2[reorder_idx_row,reorder_idx_col]
+
+diag(to.plot) = 0
+
+#col_fun = colorRamp2(c(round(min(to.plot),0), 0, round(max(to.plot),0)), c("darkred", "gray93", "darkblue"))
+col_fun = colorRamp2(c(round(quantile(as.matrix(to.plot),probs =0.001),digits = 0), 0, round(quantile(as.matrix(to.plot),probs =0.999),digits = 0)), c("#E64B35FF", "gray93", "#3C5488FF"))
+
+
+part1 = Heatmap(as.matrix(to.plot),cluster_rows = FALSE, cluster_columns = F ,row_split = cl.genes$cl, column_split = cl.genes$cl ,col = col_fun, show_row_names = FALSE, show_column_names = F, column_title_gp = gpar(fill = "#8491B44C", font = 3, col= "#3C5488FF"),row_title_gp = gpar(fill = "#8491B44C",font = 3, col= "#3C5488FF"))#, heatmap_legend_param = list(title = "coex" )
+
+lgd = Legend(col_fun = col_fun, title = "coex",grid_width = unit(0.3, "cm"),direction = "horizontal", title_position = "topcenter",title_gp = gpar(fontsize = 10, fontface = "bold",col="#3C5488FF"),labels_gp = gpar(col = "#3C5488FF", font = 3) )
+
+part1 = draw(part1,show_heatmap_legend = FALSE,  annotation_legend_list = lgd,annotation_legend_side = "bottom") #ht_gap = unit(7, "mm"), row_km = 2,
+
+require(png)
+img<-readPNG("../storage/cotan/results/mouse1/linear/prova_layers.png")
+
+gb = grid.grabExpr(draw(part1))
+gb2 = grid.grabExpr(grid.raster(img, 0.5, .5, width=0.95))
+
+is.grob(gb2)
+
+fig2_part1 = ggdraw() +
+  draw_plot(gb2, x = .0, y = 0.25, width = .35, height = 0.5) +
+  draw_plot(gb, x = .4, y = 0.01, width = .60, height = 0.95) +
+  draw_plot_label(label = c("A", "B","Figure 2"), size = 14,
+                  x = c(0, 0.40, -0.025), y = c(0.95, 0.95, 1)) 
+
+fig2_part1
+
+```
+
+## PCA, MDS and interactive marker genes tSNE plot
+
+Following there are the analysis for cortex layer genes markers.
+
+# With the method square root
+
+```{r}
+data.dir = "../storage/cotan/results/mouse1/linear/"
+primary.markers = c("Reln","Lhx5","Cux1","Satb2","Rorb","Sox5","Fezf2","Bcl11b","Vim","Hes1")
+#primary.markers = c("Lhx5","Satb2","Rorb","Sox5","Bcl11b","Vim")
+#primary.markers = c("Satb2","Bcl11b","Sox5","Reln","Rorb","Tbr1","Lhx5","Cux1","Fezf2","Foxp2","Vim","Hes1","Tle1", "Nes")
+load_data3.0(dir = data.dir, cond = "E17.5",genes = primary.markers ,prefix = "p_value_" )
+```
+
+```{r}
+n.genes.for.marker = 25
+all.genes.to.an = vector()
+for (m in primary.markers) {
+  all.genes.to.an = c(all.genes.to.an,rownames(p_value_E17.5[order(p_value_E17.5[,m]),])[1:n.genes.for.marker])
+  all.genes.to.an =unique(all.genes.to.an)
+}
+
+tmp = p_value_E17.5[all.genes.to.an,]
+for (m in primary.markers) {
+  tmp = as.data.frame(tmp[order(tmp[,m]),])
+  tmp$rank = c(1:nrow(tmp))
+  colnames(tmp)[ncol(tmp)] = paste("rank",m,sep = ".")
+  }
+rank.genes = tmp[,(length(primary.markers)+1):ncol(tmp)]
+for (c in c(1:length(colnames(rank.genes)))) {
+  colnames(rank.genes)[c] =strsplit(colnames(rank.genes)[c], split='.',fixed = T)[[1]][2]
+}
+
+load_data3.0(dir = data.dir, cond = "E17.5" ,genes = all.genes.to.an ,prefix = "p_value_" )
+#load_data3.0(dir = data.dir, cond = E17.5 ,genes = rownames(quant.p.sorted[quant.p.sorted > 1.5,]) ,prefix = "p_value_" )
+
+S =as.data.frame(fread(paste(data.dir,"S_E17.5.csv.gz", sep=""),select = 1) )
+S = cbind(S,as.data.frame(fread(paste(data.dir,"S_E17.5.csv.gz", sep=""),select = all.genes.to.an)))
+rownames(S)= S$V1
+S=S[,2:ncol(S)]
+
+#quant.p.val2 = rowQuantiles((as.matrix(S)),probs =(1-15/ncol(S)) , na.rm = T) #0.975
+CD.sorted <- t(apply(t(S),2,sort,decreasing=T))
+CD.sorted = CD.sorted[,1:round(ncol(CD.sorted)/20, digits = 0)]
+CD.sorted = pchisq(as.matrix(CD.sorted), df=1, lower.tail=F)
+
+quant.p.val2 = rowMeans(CD.sorted)
+  quant.p.val2 =as.data.frame(quant.p.val2)
+  colnames(quant.p.val2) = "S"
+
+
+#quant.p.val2 =as.data.frame(quant.p.val2)
+#colnames(quant.p.val2) = "S"
+quant.p.val2$names = rownames(quant.p.val2)
+#quant.p.val2 = cbind(quant.p.val2,rowMeans(raw_norm[rownames(quant.p.val2),]))
+#quant.p.val2$perc.0.1 = pchisq(as.matrix(quant.p.val2), df=1, lower.tail=F)
+
+genes.raw = quant.p.val2[quant.p.val2$S <= quantile(quant.p.val2$S,probs = 0.1),]$names #0.9
+#genes.raw = unique(c(genes.raw, all.genes.to.an ))
+# just to color
+layers = list("L1"=c("Reln","Lhx5"), "L2/3"=c("Satb2","Cux1"), "L4"=c("Rorb","Sox5") , "L5/6"=c("Bcl11b","Fezf2") , "Prog"=c("Vim","Hes1"))
+L1 = rowSums(rank.genes[,layers[[1]]])
+L2 = rowSums(rank.genes[,layers[[2]]])
+L4 = rowSums(rank.genes[,layers[[3]]])
+L5 =rowSums(rank.genes[,layers[[4]]])
+P = rowSums(rank.genes[,layers[[5]]])
+col.secondary = merge(L1,L2,by="row.names",all.x=TRUE)
+colnames(col.secondary)[2:3] = c("L1","L2")
+rownames(col.secondary) = col.secondary$Row.names
+col.secondary = merge(col.secondary,L4,by="row.names",all.x=TRUE)
+colnames(col.secondary)[ncol(col.secondary)] = "L4"
+rownames(col.secondary) = col.secondary$Row.names
+col.secondary = merge(col.secondary,L5,by="row.names",all.x=TRUE)
+colnames(col.secondary)[ncol(col.secondary)] = "L5"
+rownames(col.secondary) = col.secondary$Row.names
+col.secondary = merge(col.secondary,P,by="row.names",all.x=TRUE)
+colnames(col.secondary)[ncol(col.secondary)] = "P"
+rownames(col.secondary) = col.secondary$Row.names
+col.secondary = col.secondary[,5:ncol(col.secondary)]
+
+#  this part is to check that we will color as secondari marker only the genes linked to the
+# primary with positive coex
+for (n in rownames(col.secondary)) {
+  if(any(coex_E17.5[n,c("Reln","Lhx5")] < 0)){
+    col.secondary[n,"L1"] = 100000
+  }
+  if(any(coex_E17.5[n,c("Cux1","Satb2")] < 0)){
+    col.secondary[n,"L2"] = 100000
+  }
+  if(any(coex_E17.5[n,c("Rorb","Sox5")] < 0)){
+    col.secondary[n,"L4"] = 100000
+  }
+  if(any(coex_E17.5[n,c("Bcl11b","Fezf2")] < 0)){
+    col.secondary[n,"L5"] = 100000
+  }
+  if(any(coex_E17.5[n,c("Vim","Hes1")] < 0)){
+    col.secondary[n,"P"] = 100000
+  }
+}
+
+mylist.names <- c("L1", "L2", "L4","L5","P")
+pos.link  <- vector("list", length(mylist.names))
+names(pos.link) <- mylist.names
+for (g in rownames(col.secondary)) {
+  if(length( which(col.secondary[g,] == min(col.secondary[g,]))) == 1 ){
+  pos.link[[which(col.secondary[g,] == min(col.secondary[g,])) ]] = 
+    c(pos.link[[which(col.secondary[g,] == min(col.secondary[g,])) ]], g)
+  }
+}
+
+#--------------------------------------------
+# old to color
+#p_value_17_red = p_value_17[genes.raw,] 
+#coex_17_red = coex_17[genes.raw,]
+
+#pos.link = list()
+
+#for (m in c(1:length(layers))) {
+ # print(layers[[m]])
+  #  tmp = p_value_17_red[p_value_17_red < 0.05 ,layers[[m]]]
+   # tmp = tmp[complete.cases(tmp),]
+#    tmp = tmp[all.genes.to.an,]
+ #   tmp = tmp[complete.cases(tmp),]
+  #  tmp = coex_17_red[rownames(tmp),colnames(tmp)]
+   # tmp = tmp[rowMins(as.matrix(tmp)) > 0,]
+  #  pos.link[[m]] = rownames(tmp)
+#}
+
+#names(pos.link)=names(layers)
+#dup = unlist(pos.link)[duplicated(unlist(pos.link))]
+# remove the duplicated genes
+#for (m in c(1:length(pos.link))) {
+#  pos.link[[m]]= pos.link[[m]][!pos.link[[m]] %in% dup]
+ # if (!all(layers[[m]] %in% pos.link[[m]])) {
+  #  layers[[m]][!layers[[m]] %in% pos.link[[m]]]
+  #}
+  
+#}
+
+#------------------------------old
+#for (m in c(1:length(layers))) {
+#  print(m)
+#  tmp2 = vector()
+#  for (g in layers[[m]]) {
+ #   print(g)
+    #tmp =rownames(p_value_17[order(p_value_17[,g]),])[1:n.genes.for.marker+20]
+    #tmp = all.genes.to.an[all.genes.to.an %in% rownames(p_value_17_red[p_value_17_red[,g] < 0.05,] ) ]
+   #tmp2= c(tmp2,tmp[tmp %in% rownames(coex_17[coex_17[,g] >= 0,])]  )
+  #  tmp = rownames(coex_17_red[coex_17_red[,g] > 0,])
+  #  tmp2 = c(tmp2, tmp[tmp %in% all.genes.to.an])
+  #}
+#  pos.link[[m]] = unique(c(tmp2,layers[[m]]))
+#}
+#names(pos.link)=names(layers)
+#dup = unlist(pos.link)[duplicated(unlist(pos.link))]
+# remove the duplicated genes
+#for (m in c(1:length(pos.link))) {
+#  pos.link[[m]]= pos.link[[m]][!pos.link[[m]] %in% dup]
+#  if (!all(layers[[m]] %in% pos.link[[m]])) {
+ #   layers[[m]][!layers[[m]] %in% pos.link[[m]]]
+#  }
+  
+#}
+#-------------------------------------
+
+to.plot.cl.genes = coex_E17.5[rownames(coex_E17.5) %in% genes.raw,]
+
+to.plot.cl.genes = tanh(to.plot.cl.genes)
+
+```
+
+
+```{r}
+coex.pca.genes <- prcomp(t(to.plot.cl.genes),
+                 center = TRUE,
+                 scale. = F) 
+
+fviz_eig(coex.pca.genes, addlabels=TRUE,ncp = 20)
+#fviz_eig(coex.pca.genes, choice = "eigenvalue", addlabels=TRUE)
+```
+Hierarchical clustering
+```{r}
+hc.norm = hclust(dist(to.plot.cl.genes), method = "ward.D2")
+
+dend <- as.dendrogram(hc.norm)
+
+pca_1 = as.data.frame(coex.pca.genes$rotation[,1:10])
+pca_1 = pca_1[order.dendrogram(dend),]
+
+cut = cutree(hc.norm, k = 7, order_clusters_as_data = F)
+
+
+
+pca_1$highlight = with(pca_1, 
+          ifelse(rownames(pca_1) %in% pos.link$L5, "genes related to L5/6",
+          ifelse(rownames(pca_1) %in% pos.link$L2 , "genes related to L2/3",
+          ifelse(rownames(pca_1) %in% pos.link$P , "genes related to Prog" ,
+          ifelse(rownames(pca_1) %in% pos.link$L1 , "genes related to L1" ,
+          ifelse(rownames(pca_1) %in% pos.link$L4 ,"genes related to L4" ,
+      "not marked"))))))
+
+# But sort them based on their order in dend:
+#colors_to_use <- pca_1$highlight[order.dendrogram(dend)]
+
+#mycolours <- c("genes related to L5/6" = "#3C5488FF","genes related to L2/3"="#F39B7FFF","genes related to Prog"="#4DBBD5FF","genes related to L1"="#E64B35FF","genes related to L4" = "#91D1C2FF", "not marked"="#B09C85FF")
+pca_1$hclust = cut
+
+pca_1$colors = NA
+pca_1[pca_1$highlight == "genes related to L5/6", "colors"] = "#3C5488FF"
+pca_1[pca_1$highlight == "genes related to L2/3","colors"] = "#F39B7FFF"
+pca_1[pca_1$highlight == "genes related to Prog","colors"] = "#4DBBD5FF"
+pca_1[pca_1$highlight == "genes related to L1","colors"] = "#E64B35FF"
+pca_1[pca_1$highlight == "genes related to L4","colors"] = "#91D1C2FF"
+pca_1[pca_1$highlight == "not marked","colors"] = "#B09C85FF"
+
+
+
+library(tidyverse)
+library(dendextend)
+
+dend =branches_color(dend,k=7,col=c("#4DBBD5FF","#91D1C2FF","gray80","gray80","#F39B7FFF","#E64B35FF","#3C5488FF" ),groupLabels = T)
+dend =color_labels(dend,k=7,labels = rownames(pca_1),col=pca_1$colors)
+
+
+dend %>%
+  set("labels", ifelse(labels(dend) %in% rownames(pca_1)[rownames(pca_1) %in% colnames(to.plot.cl.genes)] ,labels(dend),"")) %>%
+  #  set("branches_k_color", value = c("gray80","#4DBBD5FF","#91D1C2FF" ,"gray80","#F39B7FFF","#E64B35FF","#3C5488FF"), k = 7) %>%
+ plot(horiz=F, axes=T,ylim = c(0,80))
+
+
+library(ggpubr)
+library( dendextend)
+library(gridExtra)
+library(grid)
+ 
+cluster = cut
+cluster[cluster == 1] = "#4DBBD5FF"
+cluster[cluster == 2] = "#91D1C2FF"
+cluster[cluster == 3] = "#B09C85FF"
+cluster[cluster == 4] = "#B09C85FF"
+cluster[cluster == 5] = "#F39B7FFF"
+cluster[cluster == 6] = "#E64B35FF"
+cluster[cluster == 7] = "#3C5488FF"
+
+
+plot.new()
+plot(dend,horiz=T, axes=T,xlim = c(100,0),leaflab = "none")
+abline(v = 47, lty = 2)
+colored_bars(cluster,dend,horiz = T,sort_by_labels_order = F,y_shift = 1,
+               rowLabels= "" )
+gridGraphics::grid.echo()
+tree <- grid.grab()
+
+par_pca = pca_1[all.genes.to.an[all.genes.to.an %in% rownames(pca_1)],]
+#plot N 1
+p1 <- ggparagraph(text = paste0(rownames(par_pca[par_pca$hclust == par_pca["Fezf2","hclust"],]), collapse = ", "), 
+                  face = "italic", 
+                  size =10, 
+                  color = "#3C5488FF")
+
+#plot N 2
+p2 = ggparagraph(text = paste0(rownames(par_pca[par_pca$hclust == unique(par_pca$hclust)[!unique(par_pca$hclust) %in% unique(par_pca[primary.markers,"hclust"])][1],]), collapse = ", "), 
+                 face = "italic", 
+                 size =10, 
+                 color = "gray")
+
+#plot N 3
+p3 = ggparagraph(text = paste0(rownames(par_pca[par_pca$hclust == unique(par_pca$hclust)[!unique(par_pca$hclust) %in% unique(par_pca[primary.markers,"hclust"])][2],]), collapse = ", "), 
+                 face = "italic", 
+                 size =10, 
+                 color = "gray")
+#plot N 4
+p4 = ggparagraph(text = paste0(rownames(par_pca[par_pca$hclust == par_pca["Reln","hclust"],]), collapse = ", "), 
+                 face = "italic", 
+                 size =10, 
+                 color = "#E64B35FF")
+
+#plot N 5
+p5 = ggparagraph(text = paste0(rownames(par_pca[par_pca$hclust == par_pca["Cux1","hclust"],]), collapse = ", "), 
+                 face = "italic", 
+                 size =10, 
+                 color = par_pca["Cux1","colors"])
+#plot N 6
+p6 = ggparagraph(text = paste0(rownames(par_pca[par_pca$hclust == par_pca["Rorb","hclust"],]), collapse = ", "), 
+                 face = "italic", 
+                 size =10, 
+                 color = par_pca["Rorb","colors"])
+#plot N 7
+p7 = ggparagraph(text = paste0(rownames(par_pca[par_pca$hclust == par_pca["Vim","hclust"],]), collapse = ", "), 
+                 face = "italic", 
+                 size =10, 
+                 color = par_pca["Vim","colors"])
+
+w = ggparagraph(text = " ", 
+                 face = "italic", 
+                 size =10, 
+                 color = "white")
+
+pp =ggarrange(p1,p4,p5,p2,p3,p6,p7,w,
+          ncol = 1, nrow = 8,
+          heights = c(0.2,0.2,0.2, 0.2, 0.2, 0.2, 0.2, 0.2))
+
+
+    
+lay <- rbind(c(1,NA),
+             c(1,2),
+             c(1,2),
+             c(1,2),
+             c(1,2),
+             c(1,2),
+             c(1,NA))
+
+grid.arrange(tree, pp, layout_matrix = lay)
+#info.norm$Layer = NA
+#info.norm[info.norm$hclust == 1,"Layer"] = "P" 
+#info.norm[info.norm$hclust == 2,"Layer"] = "L1" 
+#info.norm[info.norm$hclust == 3,"Layer"] = "L4" 
+#info.norm[info.norm$hclust == 4,"Layer"] = "L2_3" 
+#info.norm[info.norm$hclust == 7,"Layer"] = "L5_6" 
+
+#M2L = list()
+# M2L$Layer.1 = as.vector(unique(M2$Layer.1))
+# M2L$Layer.2_3= as.vector(unique(M2$layer.II...III))
+# M2L$Layer.5_6= as.vector(unique(M2$Layer.V...VI))
+# M2L$Layer.P= as.vector(unique(M2$prog))
+
+```
+
+```{r}
+#print(coex.pca)
+controls =list("genes related to L5/6"=c("Tle4","Foxp2","Tbr1"), "genes related to L2/3"=c("Mef2c"), "genes related to Prog"=c("Nes","Sox2") , "genes related to L1"=c() , "genes related to L4"=c("Kcnip2")) 
+
+
+textdf <- pca_1[rownames(pca_1) %in% c(unlist(layers),unlist(controls)) , ]
+
+ for (m in c(1:length(controls))) {
+  for (g in controls[[m]]) {
+    if(g %in% rownames(textdf)){
+      textdf[g,"highlight"] = names(controls[m])
+    } 
+  }
+}
+
+
+mycolours <- c("genes related to L5/6" = "#3C5488FF","genes related to L2/3"="#F39B7FFF","genes related to Prog"="#4DBBD5FF","genes related to L1"="#E64B35FF","genes related to L4" = "#91D1C2FF", "not marked"="#B09C85FF")
+
+# to assing correcly the cluster number and the color
+mycolours2 = c("Reln","Satb2","Rorb","Bcl11b","Vim")
+names(mycolours2) = unique(cut[primary.markers])
+mycolours2[mycolours2 == "Reln"] = "#E64B35FF"
+mycolours2[mycolours2 == "Satb2"] = "#F39B7FFF"
+mycolours2[mycolours2 == "Rorb"] = "#91D1C2FF"
+mycolours2[mycolours2 == "Bcl11b"] = "#3C5488FF"
+mycolours2[mycolours2 == "Vim"] = "#4DBBD5FF"
+vv = c("#B09C85FF","#B09C85FF")
+names(vv) = c(1:7)[!c(1:7) %in% names(mycolours2)]
+mycolours2 = c(mycolours2, vv)
+#------------------------------------
+
+#pca1 = ggplot(subset(pca_1,highlight == "not marked" ), aes(x=PC1, y=PC2)) +  geom_point(alpha = 0.3, color = "#B09C85FF",size=2.5)
+pca1 = ggplot(subset(pca_1,!hclust %in% unique(cut[primary.markers])  ), aes(x=PC1, y=PC2)) +  geom_point(alpha = 0.3,color = "#B09C85FF",size=1.5)
+
+#pca2 = pca1 + geom_point(data = subset(pca_1, highlight != "not marked" ), aes(x=PC1, y=PC2, colour=hclust),size=2.5,alpha = 0.9) 
+pca2 = pca1 + geom_point(data = subset(pca_1, hclust %in% unique(cut[primary.markers]) ), aes(x=PC1, y=PC2, colour=as.character(hclust)),size=1.5,alpha = 0.5) + 
+  scale_color_manual("Status", values = mycolours2)  +
+  scale_fill_manual("Status", values = mycolours2)  +
+  xlab("") + ylab("") +
+  geom_label_repel(data =textdf , aes(x = PC1, y = PC2, label = rownames(textdf),fill=as.character(hclust)),
+                   label.size = NA, 
+                   alpha = 0.5, 
+                   direction = "both",
+                   na.rm=TRUE,
+                   seed = 1234) +
+  geom_label_repel(data =textdf , aes(x = PC1, y = PC2, label = rownames(textdf)),
+                   label.size = NA, 
+                   segment.color = 'black',
+                   segment.size = 0.5,
+                   direction = "both",
+                   alpha = 1, 
+                   na.rm=TRUE,
+                   fill = NA,
+                   seed = 1234) +
+  ggtitle("PCA") +
+  theme_light(base_size=10) +
+    theme(axis.text.x=element_blank(),plot.title = element_text(size=14, 
+                                    face="italic", 
+                                    color="#3C5488FF",
+                                    hjust=0.01,
+                                    lineheight=1.2,margin = margin(t = 5, b = -15)),
+        axis.text.y=element_blank(),
+        legend.position = "none")  # titl)
+
+pca2 #+ geom_encircle(data = pca_1, aes(group=hclust)) 
+```
+
+```{r}
+cl.genes.tsne = Rtsne(to.plot.cl.genes ,initial_dims = 100, dims = 2, perplexity=30,eta = 200, verbose=F, max_iter = 3000,theta=0.4,num_threads = 10,pca_center = T, pca_scale = FALSE, normalize = T )
+#cl.genes.tsne = Rtsne(coex.pca.genes$rotation[,1:5] , dims = 2, perplexity=50, verbose=TRUE, max_iter = 1000,Pca = F)
+d_tsne_1 = as.data.frame(cl.genes.tsne$Y)
+rownames(d_tsne_1) = rownames(to.plot.cl.genes)
+
+d_tsne_1 = d_tsne_1[order.dendrogram(dend),]
+
+d_tsne_1$hclust = cut
+
+d_tsne_1$highlight = with(d_tsne_1, 
+          ifelse(rownames(d_tsne_1) %in% pos.link$L5, "genes related to L5/6",
+          ifelse(rownames(d_tsne_1) %in% pos.link$L2 , "genes related to L2/3",
+          ifelse(rownames(d_tsne_1) %in% pos.link$P , "genes related to Prog" ,
+          ifelse(rownames(d_tsne_1) %in% pos.link$L1 , "genes related to L1" ,
+          ifelse(rownames(d_tsne_1) %in% pos.link$L4 ,"genes related to L4" ,
+      "not marked"))))))
+d_tsne_1$names = rownames(d_tsne_1)
+
+textdf <- d_tsne_1[rownames(d_tsne_1) %in% c(unlist(layers),unlist(controls)),]
+
+for (m in c(1:length(controls))) {
+  for (g in controls[[m]]) {
+    if(g %in% rownames(textdf)){
+      textdf[g,"highlight"] = names(controls[m])
+    } 
+  }
+}
+
+
+ p1 = ggplot(subset(d_tsne_1,!hclust %in% unique(cut[primary.markers])), aes(x=V1, y=V2)) +  geom_point(alpha = 0.3, color = "#B09C85FF", size=1.5)
+
+p2 = p1 + geom_point(data = subset(d_tsne_1, hclust %in% unique(cut[primary.markers]) ), aes(x=V1, y=V2, colour=as.character(hclust)),size=1.5,alpha = 0.5) +
+    scale_color_manual("Status", values = mycolours2)  +
+  scale_fill_manual("Status", values = mycolours2)  +
+  xlab("") + ylab("")+
+  geom_label_repel(data =textdf , aes(x = V1, y = V2, label = names,fill=as.character(hclust)),
+                   label.size = NA, 
+                   alpha = 0.5, 
+                   direction = "both",
+                   na.rm=TRUE,
+                   seed = 1234) +
+  geom_label_repel(data =textdf , aes(x = V1, y = V2, label = names),
+                   label.size = NA, 
+                   segment.color = 'black',
+                   segment.size = 0.5,
+                   direction = "both",
+                   alpha = 1, 
+                   na.rm=TRUE,
+                   fill = NA,
+                   seed = 1234) +
+  ggtitle("t-SNE") +
+  theme_light(base_size=10) +
+  theme(axis.text.x=element_blank(),plot.title = element_text(size=14, 
+                                    face="italic", 
+                                    color="#3C5488FF",
+                                    hjust=0.01,
+                                    lineheight=1.2,margin = margin(t = 5, b = -15)),
+        axis.text.y=element_blank(),
+        legend.position = "none")  # titl)
+p2
+```
+
+# isoMDS with PCA and scaleing
+```{r}
+genes.dist.euc =  dist(to.plot.cl.genes, method =  "euclidean")
+#fit <- isoMDS(genes.dist.euc) # not linear
+fit <- isoMDS(genes.dist.euc)
+fit.genes = as.data.frame(fit$points)
+
+fit.genes = fit.genes[order.dendrogram(dend),]
+
+fit.genes$hclust = cut
+
+fit.genes$highlight = with(fit.genes, 
+          ifelse(rownames(fit.genes) %in% pos.link$L5, "genes related to L5/6",
+          ifelse(rownames(fit.genes) %in% pos.link$L2 , "genes related to L2/3",
+          ifelse(rownames(fit.genes) %in% pos.link$P , "genes related to Prog" ,
+          ifelse(rownames(fit.genes) %in% pos.link$L1 , "genes related to L1" ,
+          ifelse(rownames(fit.genes) %in% pos.link$L4 ,"genes related to L4" ,
+      "not marked"))))))
+fit.genes$names = rownames(fit.genes)
+
+mycolours3 <- c("cluster L5/6 markers" = "#3C5488FF","cluster L2/3 markers"="#F39B7FFF","cluster Prog markers"="#4DBBD5FF","cluster L1 markers"="#E64B35FF","cluster L4 markers" = "#91D1C2FF", "not identified cluster"="#B09C85FF")
+
+fit.genes$cluster = NA
+for (ii in names(mycolours2)) {
+  fit.genes[fit.genes$hclust == ii,]$cluster = names(mycolours3[mycolours3 == mycolours2[ii]])
+}
+
+#fit.genes$hclust = factor(cutree(hc.norm, 7))
+used = vector()
+for (k in c(1:length(layers))) {
+  #print(k)
+  tt =as.numeric(cut[layers[[k]]][1])
+  fit.genes[fit.genes$hclust == tt,"cluster"] = paste("cluster",names(layers[k]),"markers", sep = " " )
+  used = c(used,cut[layers[[k]]][1])
+}
+
+fit.genes[fit.genes$hclust %in% (unique(fit.genes$hclust)[!unique(fit.genes$hclust) %in% used]),]$cluster = "not identified cluster"
+
+textdf <- fit.genes[rownames(fit.genes) %in% c(unlist(layers),unlist(controls)),]
+
+   f1 = ggplot(subset(fit.genes,!hclust %in% unique(cut[primary.markers]) ), aes(x=V1, y=V2)) +  geom_point(alpha = 0.3, color = "#B09C85FF", size=1.5)
+
+f2 = f1 + geom_point(data = subset(fit.genes, hclust %in% unique(cut[primary.markers]) ), 
+                     aes(x=V1, y=V2, colour=cluster), size=1.5,alpha = 0.5) +
+  scale_color_manual("Status", values = mycolours3)  +
+  scale_fill_manual("Status", values = mycolours3)  + 
+  xlab("") + ylab("")+
+  geom_label_repel(data =textdf , aes(x = V1, y = V2, label = rownames(textdf),fill=cluster),
+                   label.size = NA, 
+                   alpha = 0.5, 
+                   direction ="both",
+                   na.rm=TRUE,
+                   seed = 1234, show.legend = FALSE) +
+  geom_label_repel(data =textdf , aes(x = V1, y = V2, label = rownames(textdf)),
+                   label.size = NA, 
+                   segment.color = 'black',
+                   segment.size = 0.5,
+                   direction = "both",
+                   alpha = 1, 
+                   na.rm=TRUE,
+                   fill = NA,
+                   seed = 1234, show.legend = FALSE) +
+  ggtitle("MDS") +
+  theme_light(base_size=10) +
+  theme(axis.text.x=element_blank(),plot.title = element_text(size=14, 
+                                    face="italic", 
+                                    color="#3C5488FF",
+                                    hjust=0.01,
+                                    lineheight=1.2,margin = margin(t = 5, b = -15)),
+        axis.text.y=element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(color = "#3C5488FF",face ="italic" ),
+        legend.position = "bottom")  # titl)
+
+legend <- cowplot::get_legend(f2)
+
+f2 = f2 + theme(
+        legend.position = "none") 
+
+
+f2 #+ geom_encircle(data = fit.genes, aes(group=`5_clusters`)) 
+```
+
+
+```{r}
+fig2_part2 = ggdraw() +
+  draw_plot(pca2, x = .0, y = 0.0, width = .33, height = 0.95) +
+  draw_plot(p2, x = .33, y = 0.0, width = .33, height = 0.95) +
+  draw_plot(f2, x = .66, y = 0.0, width = .33, height = 0.95) +
+  draw_plot_label(label = c("C", "D","E"), size = 14,
+                  x = c(0, 0.33,0.66 ), y = c(0.95, 0.95,0.95)) 
+
+fig2_part2
+```
+```{r}
+fig2 = ggdraw() +
+  draw_plot(fig2_part1, x = .0, y = 0.46, width = 1, height = 0.53) +
+  draw_plot(fig2_part2, x = .0, y = 0.03, width = 1, height = 0.43) +
+  draw_plot(legend, x = .2, y = 0, width = 0.5, height = 0.03) 
+  
+
+fig2
+```
+
+```{r}
+library("AnnotationDbi")
+library("org.Mm.eg.db")
+library("GO.db")
+
+```
+```{r}
+GO = "GO:0003676" #nucleic acid binding
+library(org.Mm.eg.db)
+list = select(org.Mm.eg.db, keys = rownames(pca_1),
+              columns=c("SYMBOL","GOALL"),keytype="SYMBOL") #[fit.genes$hclust %in% c(7,4,1,2,3),]),
+list = list[list$GOALL == GO,]
+list = list[complete.cases(list),]
+not.useful = c("NAS","TAS","IEA","IC","ND")
+list1 = list[!list$EVIDENCEALL %in% not.useful,]
+list1 = unique(list1$SYMBOL)
+pca_1$GO = NA
+pca_1[list1,]$GO = "nucleic acid binding"
+pca_1[list1,c(11:ncol(pca_1))]
+```
+

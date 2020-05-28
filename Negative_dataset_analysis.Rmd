@@ -1,0 +1,196 @@
+---
+title: "Negative dataset analysis"
+output: html_notebook
+---
+
+
+```{r include=FALSE}
+library(ggrepel)
+source("../src/functions.R")
+source("../src/cotan_output_functions.R")
+```
+Technical negative dataset: ERCC 10x
+```{r echo=FALSE}
+tt = c("../results/2020.02.10/ercc_f/linear/p_value_ercc_f.csv.gz","../results/2020.02.10/ercc_f/sqrt/p_value_ercc_f.csv.gz")
+
+p_val_tot = data.frame("Var1"=character(), "Var2"=character(), "Freq"=double(), "n"=double(),"type"=character())
+
+for (ta in tt) {
+  
+p_values = read.csv(ta,header = T, row.names = 1)
+
+p_values[lower.tri(p_values,diag=TRUE)] <- NA
+
+p_values2 = as.data.frame(as.table(as.matrix(p_values))) 
+p_values2 = p_values2[complete.cases(p_values2),]
+p_values2 = p_values2[order(p_values2$Freq, decreasing = F),]
+p_values2$n = c(1:nrow(p_values2))/nrow(p_values2)
+p_values2$type =rep(strsplit(ta, "\\/| ")[[1]][5],nrow(p_values2)) 
+  p_val_tot = rbind(p_val_tot, p_values2)
+}
+
+ggplot(p_val_tot, aes(x = n, y = Freq,  colour=type)) +
+  theme(axis.text.x = element_text(size = 12, angle = 0, hjust = .5, vjust = .5, face = "plain"),
+        axis.text.y = element_text( size = 12, angle = 0, hjust = 0, vjust = .5, face = "plain"),  
+        axis.title.x = element_text( size = 12, angle = 0, hjust = .5, vjust = 0, face = "plain"),
+        axis.title.y = element_text( size = 12, angle = 90, hjust = .5, vjust = .5, face = "plain")) + labs(x = "percentile", y = "p-value" ) +
+  geom_line(size = 1.5) 
+
+```
+```{r}
+t = "ercc_f"
+quant.p = GDI_dataframe(dir = "../results/2020.02.10/ercc_f/linear/",t ="ercc_f" , s = "neg")
+
+ggplot(quant.p, aes(x = sum.raw.norm, y = GDI)) +
+  geom_point(size = 2, alpha=0.5) +
+  #geom_vline(xintercept=quantile(sum.coex$exp.introns)[4], linetype="dashed", color = "darkred") +
+  #geom_vline(xintercept=quantile(sum.coex$exp.introns)[3], linetype="dashed", color = "darkred") +
+  xlab("log normalized reads sum")+
+  ylab("GDI")+
+  theme(legend.position = "none") +
+  ggtitle(paste("GDI ",t, sep = ""))+
+  theme()
+
+
+```
+
+Dataset CD14+ Filtered cells
+
+GDI with linear method
+
+```{r echo=FALSE}
+t ="CD14"
+hk2 = c("CALM1","COX6B1","PPIA","H3F3A","TBP","TAF1","TAF2","GAPDH","ACTB")
+markers = c("FTL","CLEC9A")
+GDI = GDI_dataframe("CD14","../results/2020.02.18/CD14_filtered_average/","neg")
+GDI$highlight = ifelse(GDI$GDI > log(-log(10^-4))*2, "diff" , "normal")
+dif = rownames(GDI[GDI$GDI > log(-log(10^-4))*2,])
+
+GDI$highlight =ifelse(rownames(GDI) %in% hk2, "hk",
+                      ifelse(rownames(GDI) %in% markers, "mk",
+         ifelse(rownames(GDI) %in% dif,"dif" , "normal")) )
+
+textdf <- GDI[rownames(GDI) %in% rownames(GDI[GDI$GDI > 5,]) | rownames(GDI) %in% hk2, ]
+mycolours <- c("dif" = "#3C5488B2","normal"="#F39B7FE5","hk"="#7E6148B2","mk"="#E64B35B2")
+
+
+#pdf(file = paste(out_dir,"GDI_",t, ".pdf", sep = ""), paper = "a4r")
+ggplot(GDI, aes(x = sum.raw.norm, y = GDI)) +
+  geom_point(size = 3, aes(colour = highlight), alpha=0.5) +
+ # scale_color_manual("Status", values = mycolours) +
+#  ylim(0,20.5)+
+  geom_label_repel(data = textdf, aes(x = sum.raw.norm, y = GDI, label = rownames(textdf)),hjust=0.5, vjust=-0.5) +
+  geom_hline(yintercept=1.5, linetype="dashed", color = "darkred") +
+  theme(axis.text.x = element_text(size = 12, angle = 0, hjust = .5, vjust = .5, face = "plain"),
+        axis.text.y = element_text( size = 12, angle = 0, hjust = 0, vjust = .5, face = "plain"),  
+        axis.title.x = element_text( size = 12, angle = 0, hjust = .5, vjust = 0, face = "plain"),
+        axis.title.y = element_text( size = 12, angle = 90, hjust = .5, vjust = .5, face = "plain")) + labs(x = "percentile", y = "p-value" ) +
+  xlab("log normalized reads sum")+
+  ylab("GDI")+
+  theme(legend.position = "none") +
+  ggtitle(paste("GDI ",t,"+ with the linear method", sep = ""))+
+  theme()
+#dev.off()
+  
+```
+
+
+```{r echo=FALSE}
+nomi = rownames(GDI[GDI$GDI > 1.5,])
+load_data3.0("../results/2020.02.18/CD14_filtered_average/", t, nomi, prefix = "p_value_")
+df_genes = list("genes" = nomi )
+heatmap2.0(0.05,df_genes,c(1),conditions =  t ,ldir="../results/2020.02.18/CD14_filtered_average/",lim_coex = c(-13,15))
+```
+
+GDI sqrt
+
+```{r echo=FALSE}
+hk2 = c("CALM1","COX6B1","PPIA","H3F3A","TBP","TAF1","TAF2","GAPDH","ACTB")
+markers = c("FTL","CLEC9A")
+GDI = GDI_dataframe("CD14","../results/2020.02.18/CD14_filtered_sqrt/","neg")
+GDI$highlight = ifelse(GDI$GDI > log(-log(10^-4))*2, "diff" , "normal")
+dif = rownames(GDI[GDI$GDI > log(-log(10^-4))*2,])
+
+GDI$highlight =ifelse(rownames(GDI) %in% hk2, "hk",
+                      ifelse(rownames(GDI) %in% markers, "mk",
+         ifelse(rownames(GDI) %in% dif,"dif" , "normal")) )
+
+textdf <- GDI[rownames(GDI) %in% rownames(GDI[GDI$GDI > 5,]) | rownames(GDI) %in% hk2, ]
+mycolours <- c("dif" = "#3C5488B2","normal"="#F39B7FE5","hk"="#7E6148B2","mk"="#E64B35B2")
+
+
+#pdf(file = paste(out_dir,"GDI_",t, ".pdf", sep = ""), paper = "a4r")
+ggplot(GDI, aes(x = sum.raw.norm, y = GDI)) +
+  geom_point(size = 3, aes(colour = highlight), alpha=0.5) +
+  geom_label_repel(data = textdf, aes(x = sum.raw.norm, y = GDI, label = rownames(textdf)),hjust=0.5, vjust=-0.5) +
+  geom_hline(yintercept=1.5, linetype="dashed", color = "darkred") +
+theme(axis.text.x = element_text(size = 12, angle = 0, hjust = .5, vjust = .5, face = "plain"),
+        axis.text.y = element_text( size = 12, angle = 0, hjust = 0, vjust = .5, face = "plain"),  
+        axis.title.x = element_text( size = 12, angle = 0, hjust = .5, vjust = 0, face = "plain"),
+        axis.title.y = element_text( size = 12, angle = 90, hjust = .5, vjust = .5, face = "plain")) + labs(x = "percentile", y = "p-value" ) +
+  xlab("log normalized reads sum")+
+  ylab("GDI")+
+  theme(legend.position = "none") +
+  ggtitle(paste("GDI ",t,"+ with the sqrt method", sep = ""))+
+  theme()
+#dev.off()
+  
+```
+
+
+```{r echo=FALSE}
+nomi = rownames(GDI[GDI$GDI > 3,])
+nomi = c(nomi,"CLEC9A")
+load_data3.0("../results/2020.02.18/CD14_filtered_sqrt/", t, nomi, prefix = "p_value_")
+df_genes = list("genes" = nomi,"CLEC9A" )
+heatmap2.0(0.05,df_genes,c(1),conditions =  t ,ldir="../results/2020.02.18/CD14_filtered_sqrt/",lim_coex = c(-15,15))
+
+```
+
+```{r echo=FALSE}
+hk2 = c("CALM1","COX6B1","PPIA","H3F3A","TBP","TAF1","TAF2","GAPDH","ACTB")
+markers = c("FTL","CLEC9A")
+GDI = GDI_dataframe("CD14","../results/2020.02.18/CD14_sqrt_no_cleaning/","neg")
+GDI$highlight = ifelse(GDI$GDI > log(-log(10^-4))*2, "diff" , "normal")
+dif = rownames(GDI[GDI$GDI > log(-log(10^-4))*2,])
+
+GDI$highlight =ifelse(rownames(GDI) %in% hk2, "hk",
+                      ifelse(rownames(GDI) %in% markers, "mk",
+         ifelse(rownames(GDI) %in% dif,"dif" , "normal")) )
+
+textdf <- GDI[rownames(GDI) %in% rownames(GDI[GDI$GDI > 5,]) | rownames(GDI) %in% hk2, ]
+mycolours <- c("dif" = "#3C5488B2","normal"="#F39B7FE5","hk"="#7E6148B2","mk"="#E64B35B2")
+
+
+#pdf(file = paste(out_dir,"GDI_",t, ".pdf", sep = ""), paper = "a4r")
+ggplot(GDI, aes(x = sum.raw.norm, y = GDI)) +
+  geom_point(size = 3, aes(colour = highlight), alpha=0.5) +
+  geom_label_repel(data = textdf, aes(x = sum.raw.norm, y = GDI, label = rownames(textdf)),hjust=0.5, vjust=-0.5) +
+  geom_hline(yintercept=log(-log(10^-4)), linetype="dashed", color = "darkred") +
+theme(axis.text.x = element_text(size = 12, angle = 0, hjust = .5, vjust = .5, face = "plain"),
+        axis.text.y = element_text( size = 12, angle = 0, hjust = 0, vjust = .5, face = "plain"),  
+        axis.title.x = element_text( size = 12, angle = 0, hjust = .5, vjust = 0, face = "plain"),
+        axis.title.y = element_text( size = 12, angle = 90, hjust = .5, vjust = .5, face = "plain")) + labs(x = "percentile", y = "p-value" ) +
+  xlab("log normalized reads sum")+
+  ylab("GDI")+
+  theme(legend.position = "none") +
+  ggtitle(paste("GDI ",t,"+ with the sqrt method", sep = ""))+
+  theme()
+#dev.off()
+  
+```
+
+
+```{r echo=FALSE}
+nomi = rownames(GDI[GDI$GDI > 3,])
+nomi = c(nomi,"CLEC9A")
+load_data3.0("../results/2020.02.18/CD14_sqrt_no_cleaning/", t, nomi, prefix = "p_value_")
+df_genes = list("genes" = nomi )
+heatmap2.0(0.05,df_genes,c(1),conditions =  t ,ldir="../results/2020.02.18/CD14_sqrt_no_cleaning/",lim_coex = c(-15,15))
+
+```
+
+
+
+
+

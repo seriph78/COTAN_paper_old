@@ -1,0 +1,678 @@
+---
+title: "Fig S 3"
+output: html_notebook
+---
+
+GDI syntetic datasets
+```{r}
+source("../src/functions.R")
+source("../src/cotan_output_functions.R")
+library("ggsci")
+library("ggplot2")
+library("gridExtra")
+library(ggrepel)
+library(scales)
+library(patchwork)
+library(data.table)
+library(cowplot)
+```
+
+
+```{r include=FALSE}
+files = c("sym_E17_cl1_800cs/linear","sym_E17_cl1_800cs/sqrt"
+          ) #
+
+p_val.to_plot800 = data.frame("p_val"=double(),"n"=double(), "group"=character(), "cells"=character())
+for(tt in files ){
+  input_dir = paste("../results/2020.02.09/",tt,"/",sep = "")
+  cl = strsplit(tt, "_")[[1]][3]
+  if(cl == "cl1"){
+    cl = "H"
+  }else{
+    cl = "M"
+  }
+  
+  pref = strsplit(tt, "/")[[1]][1]
+  #cl = paste(strsplit(cl, "l")[[1]][2],"cl.", sep = " ")
+  if(strsplit(tt, "\\/|\\_| ")[[1]][2] == "E17"){
+    M = "DSQ"
+  }else{
+    M = "10X"
+  }
+  
+  row.a = paste(c(M, cl,strsplit(tt, "\\/|\\_| ")[[1]][4]), collapse = '_') 
+  
+  col.a = strsplit(tt, "/")[[1]][2]
+  p_val = as.data.frame(fread(paste(input_dir,"p_value_",pref,".csv.gz",sep = "")))
+  rownames(p_val) = p_val$V1
+  p_val = p_val[,2:ncol(p_val)]
+  p_val = as.data.frame(as.table(as.matrix(p_val)))
+  
+  p_val = p_val[,3]
+  p_val = sample(p_val,size = 10**6)
+  
+  p_val = sort(p_val)
+  p_val = as.data.frame(p_val)
+  p_val$n = c(1:nrow(p_val))
+  p_val$n = p_val$n/max(p_val$n)
+  
+  p_val$group= rep(paste(c(col.a,row.a), collapse = '-'), nrow(p_val))
+  p_val$cells= rep(strsplit(tt, "\\/|\\_| ")[[1]][4],nrow(p_val)) 
+  p_val.to_plot800 = rbind(p_val.to_plot800,p_val) 
+}
+```
+
+```{r}
+si = 12
+my_theme = theme(axis.text.x = element_text(size = si, angle = 0, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF" ),
+        axis.text.y = element_text( size = si, angle = 0, hjust = 0, vjust = .5, face = "plain", colour ="#3C5488FF"),  
+        axis.title.x = element_text( size = si, angle = 0, hjust = .5, vjust = 0, face = "plain", colour ="#3C5488FF"),
+        axis.title.y = element_text( size = si, angle = 90, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF"),
+        legend.title = element_blank(),
+        legend.text = element_text(color = "#3C5488FF",face ="italic" ),
+        legend.position = "bottom")
+
+p_val.to_plot800 = p_val.to_plot800[p_val.to_plot800$p_val != 0,]
+pp1 = ggplot(p_val.to_plot800, aes(y=n, x=p_val, colour=group))+
+  geom_abline(slope = 1,linetype="dotted", colour = "darkred")+ 
+  geom_line(size=1.5, alpha=.8) + scale_color_npg()+
+  labs(y = "percentile", x = "p-value" ) +
+  my_theme+theme(legend.position = "top")+ guides(col = guide_legend(nrow = 2)) 
+  
+  
+pp1
+```
+```{r include=FALSE}
+files = c("sym_E17_cl1_4000cs/sqrt", "sym_E17_cl1_4000cs/linear"
+          ) #
+
+p_val.to_plot4000 = data.frame("p_val"=double(),"n"=double(), "group"=character(), "cells"=character())
+for(tt in files ){
+  input_dir = paste("../results/2020.02.09/",tt,"/",sep = "")
+  cl = strsplit(tt, "_")[[1]][3]
+  if(cl == "cl1"){
+    cl = "H"
+  }else{
+    cl = "M"
+  }
+  
+  pref = strsplit(tt, "/")[[1]][1]
+  #cl = paste(strsplit(cl, "l")[[1]][2],"cl.", sep = " ")
+  if(strsplit(tt, "\\/|\\_| ")[[1]][2] == "E17"){
+    M = "DSQ"
+  }else{
+    M = "10X"
+  }
+  
+  row.a = paste(c(M, cl,strsplit(tt, "\\/|\\_| ")[[1]][4]), collapse = '_') 
+  
+  col.a = strsplit(tt, "/")[[1]][2]
+  p_val = as.data.frame(fread(paste(input_dir,"p_value_",pref,".csv.gz",sep = "")))
+  rownames(p_val) = p_val$V1
+  p_val = p_val[,2:ncol(p_val)]
+  p_val = as.data.frame(as.table(as.matrix(p_val)))
+  
+  p_val = p_val[,3]
+  p_val = sample(p_val,size = 10**5)
+  
+  p_val = sort(p_val)
+  p_val = as.data.frame(p_val)
+  p_val$n = c(1:nrow(p_val))
+  p_val$n = p_val$n/max(p_val$n)
+  
+  p_val$group= rep(paste(c(col.a,row.a), collapse = '-'), nrow(p_val))
+  p_val$cells= rep(strsplit(tt, "\\/|\\_| ")[[1]][4],nrow(p_val)) 
+  p_val.to_plot4000 = rbind(p_val.to_plot4000,p_val) 
+}
+
+
+p_val.to_plot4000 = p_val.to_plot4000[p_val.to_plot4000$p_val != 0,]
+pp2 = ggplot(p_val.to_plot4000, aes(y=n, x=p_val, colour=group))+
+  geom_abline(slope = 1,linetype="dotted", colour = "darkred")+ 
+  geom_line(size=1.5) + scale_color_npg()+
+  labs(y = "percentile", x = "p-value" ) +
+  my_theme+theme(legend.position = "top")+ guides(col = guide_legend(nrow = 2)) 
+  
+  
+pp2
+```
+
+
+
+Technical negative dataset: ERCC 10x
+```{r echo=FALSE}
+tt = c("../results/2020.02.10/ercc_f/linear/p_value_ercc_f.csv.gz","../results/2020.02.10/ercc_f/sqrt/p_value_ercc_f.csv.gz")
+
+p_val_tot = data.frame("Var1"=character(), "Var2"=character(), "Freq"=double(), "n"=double(),"type"=character())
+
+for (ta in tt) {
+  
+p_values = read.csv(ta,header = T, row.names = 1)
+
+p_values[lower.tri(p_values,diag=TRUE)] <- NA
+
+p_values2 = as.data.frame(as.table(as.matrix(p_values))) 
+p_values2 = p_values2[complete.cases(p_values2),]
+p_values2 = p_values2[order(p_values2$Freq, decreasing = F),]
+p_values2$n = c(1:nrow(p_values2))/nrow(p_values2)
+p_values2$type =rep(strsplit(ta, "\\/| ")[[1]][5],nrow(p_values2)) 
+  p_val_tot = rbind(p_val_tot, p_values2)
+}
+
+ercc =  ggplot(p_val_tot, aes(y = n, x = Freq,  colour=type)) +
+  geom_abline(slope = 1,linetype="dotted", colour = "darkred")+ 
+  my_theme + labs(y = "percentile", x = "p-value" ) +scale_color_npg()+
+  geom_line(size = 1.5)+theme(legend.position = "top")#+ guides(col = guide_legend(nrow = 2))
+  
+ercc
+```
+
+```{r}
+ttCD14 = c("../results/2020.02.18/CD14_filtered_average/p_value_CD14.csv.gz","../results/2020.02.18/CD14_filtered_sqrt/p_value_CD14.csv.gz")
+
+p_val_tot2 = data.frame("Var1"=character(), "Var2"=character(), "Freq"=double(), "n"=double(),"type"=character())
+
+for (ta in ttCD14) {
+
+p_values = as.data.frame(fread(ta))
+rownames(p_values) = p_values$V1
+p_values = p_values[,2:ncol(p_values)]
+
+p_values[lower.tri(p_values,diag=TRUE)] <- NA
+
+p_values2 = as.data.frame(as.table(as.matrix(p_values))) 
+p_values2 = p_values2[complete.cases(p_values2),]
+p_values2 = p_values2[sample(rownames(p_values2),10^4),]
+
+p_values2 = p_values2[order(p_values2$Freq, decreasing = F),]
+p_values2$n = c(1:nrow(p_values2))/nrow(p_values2)
+ty = strsplit(ta, "\\/| ")[[1]][4]
+p_values2$type =rep(strsplit(ty, "_")[[1]][3],nrow(p_values2)) 
+  p_val_tot2 = rbind(p_val_tot2, p_values2)
+}
+
+CD14 =  ggplot(p_val_tot2, aes(y = n, x = Freq,  colour=type)) +
+  geom_abline(slope = 1,linetype="dotted", colour = "darkred")+ 
+  my_theme + labs(y = "percentile", x = "p-value" ) +scale_color_npg()+
+  geom_line(size = 1.5)+theme(legend.position = "top")#+ guides(col = guide_legend(nrow = 2))
+  
+CD14
+```
+
+
+Dataset CD14+ Filtered cells
+
+GDI with linear method
+
+```{r echo=FALSE}
+t ="CD14"
+hk2 =c("CALM1","COX6B1","PPIA","RPL18","COX7C","ERH","H3F3A","TAF1B","TAF2","GAPDH","ACTB","GOLPH3", "MTMR12", "ZFR", "SUB1", "TARS", "AMACR")
+GDI_l = GDI_dataframe("CD14","../results/2020.02.18/CD14_filtered_average/","neg")
+#GDI_l$highlight = ifelse(GDI_l$GDI > 1.5, "diff" , "normal")
+dif = rownames(GDI_l[GDI_l$GDI > 1.5,])
+
+GDI_l$highlight =ifelse(rownames(GDI_l) %in% hk2, "Constitutive",
+        #ifelse(rownames(GDI) %in% dif,"dif" , 
+        "normal")#) 
+
+textdf <- GDI_l[rownames(GDI_l) %in% hk2, ]
+mycolours <- c("Constitutive" = "#00A087FF","dif"="#E64B35FF","normal" = "#8491B4B2")
+
+
+f1 = ggplot(subset(GDI_l,highlight == "normal" ), aes(x=sum.raw.norm, y=GDI)) +  geom_point(alpha = 0.4, color = "#8491B4B2", size=2.5)
+
+GDI_lin = f1 +  geom_point(data = subset(GDI_l,highlight != "normal"  ), aes(x=sum.raw.norm, y=GDI, colour=highlight),size=2.5,alpha = 0.8) +
+  #geom_hline(yintercept=quantile(GDI$GDI)[4], linetype="dashed", color = "darkblue") +
+  #geom_hline(yintercept=quantile(GDI$GDI)[3], linetype="dashed", color = "darkblue") +
+  geom_hline(yintercept=1.5, linetype="dotted", color = "red", size= 1) +
+  scale_color_manual("Status", values = mycolours)  +
+  scale_fill_manual("Status", values = mycolours)  +
+  xlab("log normalized counts")+ylab("GDI")+
+  geom_label_repel(data =textdf , aes(x=sum.raw.norm, y=GDI, label = rownames(textdf),fill=highlight),
+                   label.size = NA, 
+                   alpha = 0.5, 
+                   direction ="both",
+                   na.rm=TRUE,
+                   seed = 1234) +
+  geom_label_repel(data =textdf , aes(x=sum.raw.norm, y=GDI, label = rownames(textdf)),
+                   label.size = NA, 
+                   segment.color = 'black',
+                   segment.size = 0.5,
+                   direction = "both",
+                   alpha = 0.8, 
+                   na.rm=TRUE,
+                   fill = NA,
+                   seed = 1234) +
+  theme(axis.text.x = element_text(size = si, angle = 0, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF" ),
+        axis.text.y = element_text( size = si, angle = 0, hjust = 0, vjust = .5, face = "plain", colour ="#3C5488FF"),  
+        axis.title.x = element_text( size = si, angle = 0, hjust = .5, vjust = 0, face = "plain", colour ="#3C5488FF"),
+        axis.title.y = element_text( size = si, angle = 90, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF"),
+        legend.title = element_blank(),
+        legend.text = element_text(color = "#3C5488FF",face ="italic" ),
+        legend.position = "bottom")  # titl)
+  
+legend <- cowplot::get_legend(GDI_lin)
+
+GDI_lin =GDI_lin + theme(
+        legend.position = "none") 
+
+themex= theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),  
+        axis.title.x = element_blank(),
+        axis.title.y = element_text( size = si, angle = 90, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF"),
+        legend.position = "none") 
+
+themey = theme(axis.text.x = element_text( size = si, angle = 90, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF"),
+        axis.text.y = element_blank(),  
+        axis.title.x = element_text( size = si, angle = 0, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF"),
+        axis.text.x.bottom = element_blank(),
+        axis.title.y = element_blank(),
+        legend.position = "none") 
+
+xdensity <- ggplot(GDI_l, aes(sum.raw.norm)) + 
+  geom_density(alpha=.5, fill = "#8491B4B2", colour ="#8491B4B2" ) +
+  themex  
+xdensity
+
+ydensity <- ggplot(GDI_l, aes(GDI)) + 
+  geom_density(alpha=.5, fill="#00A087FF", colour= "#00A087FF") + 
+  themey +  coord_flip() 
+  
+ydensity
+
+GDI_lin = xdensity + plot_spacer() + GDI_lin+ ydensity + 
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+GDI_lin
+```
+
+
+```{r echo=FALSE}
+nomi = rownames(GDI_l[GDI_l$GDI > 1.50,])
+load_data3.0("../results/2020.02.18/CD14_filtered_average/", t, nomi, prefix = "p_value_")
+df_genes = list("genes" = nomi )
+ht_genes = heatmap2.0(0.05,df_genes,c(1),conditions =  t ,ldir="../results/2020.02.18/CD14_filtered_average/",lim_coex = c(-0.7,0.7))
+
+henrich = c("RPL5", "TMED10", "CLEC10A", "LSP1", "IL2RG", "RBM3, SNX3", "LDHA", "HLA-DMB", "HNRNPDL", "ARHGDIB", "RAC2", "PGK1", "FCER1A", "HNRNPA1", "HLA-DQA2", "HLA-DQA1", "HLA-DPA1", "CD53", "ATP6V1G1", "NPM1", "RHOC", "RHOA", "FKBP1A", "TYROBP" , "SELL", "ABI3", "S100A6", "HLA-DPB1", "PSME2", "HLA-DRA", "SLC25A5", "CPVL", "S100A9", "CALM2", "S100A8", "HLA-DQB1", "PRR13")
+
+label.df <- ht_genes$data[ht_genes$data$g2 %in% henrich,]
+
+ht_genes$data[ht_genes$data$g2 %in% henrich,]$g2 = paste(ht_genes$data[ht_genes$data$g2 %in% henrich,]$g2,"*",sep = "")
+ht_genes$data[ht_genes$data$g1 %in% henrich,]$g1 = paste(ht_genes$data[ht_genes$data$g1 %in% henrich,]$g1,"*",sep = "")
+
+
+
+ht_1 =  ht_genes +theme(
+       axis.text.x = element_blank()
+        )
+
+ht_1
+```
+
+```{r}
+print(nomi)
+```
+
+Gene cluster using all the genes over 1.5 GDI
+
+
+```{r}
+
+load_data3.0(dir = "../results/2020.02.18/CD14_filtered_average/", cond = t ,genes = nomi ,prefix = "p_value_" )
+```
+
+```{r}
+
+to.plot.cl.genes = coex_CD14[rownames(coex_CD14) %in% nomi,]
+
+to.plot.cl.genes = tanh(to.plot.cl.genes)
+
+coex.pca.genes <- prcomp(t(to.plot.cl.genes),
+                 center = TRUE,
+                 scale. = F) 
+#print(coex.pca)
+pca_1 = as.data.frame(coex.pca.genes$rotation[,1:10])
+
+
+controls =list("genes related to DC"=c("HLA-DMB", "HLA-DPB1","FCER1A", "HLA-DRA","HLA-DQA1","HLA-DPA1","HLA-DQB1", "CLEC10A"),
+               "genes related to Monocytes"=c("IL32","S100A9","S100A8", "TYROBP",	"LSP1",	"CPVL") )
+
+
+
+
+controls =list("genes related to CD1"=c("CPVL","HLA-DPA1","HLA-DPB1","HLA-DQB1", "SNX3"),
+               "genes related to CD2"=c("CD1C", "CD11C","CD11B","FCER1A","CLEC10A"), 
+               "genes related to CD3"=c("VCAN","LYZ","ANXA1", "CLEC10A"),
+               "genes related to CD4"=c("ABI3","RHOC","TYROBP" ),
+               "genes related to CD5"=c("CTSW"), 
+               "genes related to CD6"=c("IGJ","AK128525","SERPINF1","ITM2C","HNRNPA1","LTB","PTPRCAP","SELL"),
+               "genes related to Monocytes"=c("IL32","S100A9","S100A8") )
+
+
+textdf <- pca_1[rownames(pca_1) %in% unlist(controls) , ]
+
+
+pca_1$highlight = "not marked"
+
+for (m in c(1:length(controls))) {
+  for (g in controls[[m]]) {
+    if(g %in% rownames(textdf)){
+      textdf[g,"highlight"] = names(controls[m])
+      pca_1[g,"highlight"] = names(controls[m])
+    } 
+  }
+}
+
+
+
+#textdf <- pca_1[rownames(pca_1) %in% c(unlist(layers),unlist(controls)) , ]
+
+
+mycolours <- c("genes related to DC" = "#3C5488FF","genes related to CD3"="#F39B7FFF","genes related to CD6"="#4DBBD5FF","genes related to CD1"="#E64B35FF","genes related to CD4" = "#91D1C2FF","genes related to CD5" = "#91B1C1FF", "not marked"="#B09C85FF", "genes related to Monocytes"="#F39B7FFF")
+
+pca1 = ggplot(subset(pca_1,highlight == "not marked" ), aes(x=PC1, y=PC2)) +  geom_point(alpha = 0.3, color = "#B09C85FF",size=2.5)
+
+pca2 = pca1 + geom_point(data = subset(pca_1, highlight != "not marked" ), aes(x=PC1, y=PC2, colour=highlight),size=2.5,alpha = 0.9) +
+   scale_color_manual("Status", values = mycolours)  +
+  scale_fill_manual("Status", values = mycolours)  +
+  xlab("") + ylab("")+
+  geom_label_repel(data =textdf , aes(x = PC1, y = PC2, label = rownames(textdf),fill=highlight),
+                   label.size = NA, 
+                   alpha = 0.5, 
+                   direction = "both",
+                   na.rm=TRUE,
+                   seed = 1234) +
+  geom_label_repel(data =textdf , aes(x = PC1, y = PC2, label = rownames(textdf)),
+                   label.size = NA, 
+                   segment.color = 'black',
+                   segment.size = 0.5,
+                   direction = "both",
+                   alpha = 1, 
+                   na.rm=TRUE,
+                   fill = NA,
+                   seed = 1234) +
+  ggtitle("PCA") +
+  theme_light(base_size=10) +
+    theme(axis.text.x=element_blank(),plot.title = element_text(size=14, 
+                                    face="italic", 
+                                    color="#3C5488FF",
+                                    hjust=0.01,
+                                    lineheight=1.2,margin = margin(t = 5, b = -15)),
+        axis.text.y=element_blank(),
+        legend.position = "none")  # titl)
+
+pca2
+```
+
+```{r}
+#coex.pca.genes2 = coex.pca.genes$x / coex.pca.genes$sdev
+#genes.dist.euc =  dist(coex.pca.genes2, method = "euclidean")
+
+genes.dist.euc =  dist(to.plot.cl.genes, method =  "euclidean")
+#fit <- isoMDS(genes.dist.euc) # not linear
+fit <- isoMDS(genes.dist.euc)
+fit.genes = as.data.frame(fit$points)
+
+fit.genes$highlight = "not marked"
+
+textdf <- fit.genes[rownames(fit.genes) %in% c(unlist(layers),unlist(controls)  ) , ]
+
+for (m in c(1:length(controls))) {
+  for (g in controls[[m]]) {
+    if(g %in% rownames(textdf)){
+      textdf[g,"highlight"] = names(controls[m])
+      fit.genes[g,"highlight"] = names(controls[m])
+    } 
+  }
+}
+
+
+   f1 = ggplot(subset(fit.genes,highlight == "not marked" ), aes(x=V1, y=V2)) +  geom_point(alpha = 0.3, color = "#B09C85FF", size=2.5)
+
+f2 = f1 + geom_point(data = subset(fit.genes, highlight != "not marked" ), aes(x=V1, y=V2, colour=highlight),size=2.5,alpha = 0.9) + xlim(-1.4,-1.25)+ ylim(0, 0.05)+
+  scale_color_manual("Status", values = mycolours)  +
+  scale_fill_manual("Status", values = mycolours)  +
+  xlab("") + ylab("")+
+  geom_label_repel(data =textdf , aes(x = V1, y = V2, label = rownames(textdf),fill=highlight),
+                   label.size = NA, 
+                   alpha = 0.5, 
+                   direction ="both",
+                   na.rm=TRUE,
+                   seed = 1234) +
+  geom_label_repel(data =textdf , aes(x = V1, y = V2, label = rownames(textdf)),
+                   label.size = NA, 
+                   segment.color = 'black',
+                   segment.size = 0.5,
+                   direction = "both",
+                   alpha = 1, 
+                   na.rm=TRUE,
+                   fill = NA,
+                   seed = 1234) +
+  ggtitle("MDS") +
+  theme_light(base_size=10) +
+  theme(#axis.text.x=element_blank(),
+        plot.title = element_text(size=14, 
+                                    face="italic", 
+                                    color="#3C5488FF",
+                                    hjust=0.01,
+                                    lineheight=1.2,margin = margin(t = 5, b = -15)),
+        #axis.text.y=element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(color = "#3C5488FF",face ="italic" ),
+        legend.position = "right")  # titl)
+
+
+f2
+```
+
+
+GDI sqrt
+
+```{r echo=FALSE}
+t ="CD14"
+hk2 =c("CALM1","COX6B1","PPIA","RPL18","COX7C","ERH","H3F3A","TAF1","TAF2","GAPDH","ACTB","GOLPH3", "MTMR12", "ZFR", "SUB1", "TARS", "AMACR")
+  GDI = GDI_dataframe("CD14","../results/2020.02.18/CD14_filtered_sqrt/","neg")
+GDI$highlight = ifelse(GDI$GDI > 1.5, "diff" , "normal")
+dif = rownames(GDI[GDI$GDI > 1.5,])
+
+GDI$highlight =ifelse(rownames(GDI) %in% hk2, "Constitutive",
+         #ifelse(rownames(GDI) %in% dif,"dif" ,
+                "normal")#) 
+
+textdf <- GDI[rownames(GDI) %in% hk2, ]
+mycolours <- c("Constitutive" = "#00A087FF","dif"="#E64B35FF","normal" = "#8491B4B2")
+
+
+f1 = ggplot(subset(GDI,highlight == "normal" ), aes(x=sum.raw.norm, y=GDI)) +  geom_point(alpha = 0.4, color = "#8491B4B2", size=2.5)
+
+GDI_sqrt = f1 +  geom_point(data = subset(GDI,highlight != "normal"  ), aes(x=sum.raw.norm, y=GDI, colour=highlight),size=2.5,alpha = 0.8) +
+  #geom_hline(yintercept=quantile(GDI$GDI)[4], linetype="dashed", color = "darkblue") +
+  #geom_hline(yintercept=quantile(GDI$GDI)[3], linetype="dashed", color = "darkblue") +
+  geom_hline(yintercept=1.5, linetype="dotted", color = "red", size= 1) +
+  scale_color_manual("Status", values = mycolours)  +
+  scale_fill_manual("Status", values = mycolours)  +
+  xlab("log normalized counts")+ylab("GDI")+
+  geom_label_repel(data =textdf , aes(x=sum.raw.norm, y=GDI, label = rownames(textdf),fill=highlight),
+                   label.size = NA, 
+                   alpha = 0.5, 
+                   direction ="both",
+                   na.rm=TRUE,
+                   seed = 1234) +
+  geom_label_repel(data =textdf , aes(x=sum.raw.norm, y=GDI, label = rownames(textdf)),
+                   label.size = NA, 
+                   segment.color = 'black',
+                   segment.size = 0.5,
+                   direction = "both",
+                   alpha = 0.8, 
+                   na.rm=TRUE,
+                   fill = NA,
+                   seed = 1234) +
+  theme(axis.text.x = element_text(size = si, angle = 0, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF" ),
+        axis.text.y = element_text( size = si, angle = 0, hjust = 0, vjust = .5, face = "plain", colour ="#3C5488FF"),  
+        axis.title.x = element_text( size = si, angle = 0, hjust = .5, vjust = 0, face = "plain", colour ="#3C5488FF"),
+        axis.title.y = element_text( size = si, angle = 90, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF"),
+        legend.title = element_blank(),
+        legend.text = element_text(color = "#3C5488FF",face ="italic" ),
+        legend.position = "none")  # titl)
+  
+
+GDI_sqrt
+```
+
+
+```{r echo=FALSE}
+nomi = rownames(GDI[GDI$GDI > 1.50,])
+load_data3.0("../results/2020.02.18/CD14_filtered_sqrt/", t, nomi, prefix = "p_value_")
+df_genes = list("genes" = nomi,"CLEC9A" )
+heatmap2.0(0.05,df_genes,c(1),conditions =  t ,ldir="../results/2020.02.18/CD14_filtered_sqrt/",lim_coex = c(-0.7,0.7))
+
+```
+
+```{r}
+print(nomi)
+```
+
+# GDI ercc
+```{r echo=FALSE}
+GDI_ercc = GDI_dataframe("ercc_f","../results/2020.02.10/ercc_f/linear/","neg")
+#GDI_ercc$highlight = ifelse(GDI_ercc$GDI > 1.5, "diff" , "normal")
+#dif = rownames(GDI_ercc[GDI_ercc$GDI > 1.5,])
+
+
+f1 = ggplot(GDI_ercc, aes(x=sum.raw.norm, y=GDI)) +  geom_point(alpha = 0.4, color = "#8491B4B2", size=2.5)
+
+GDI_ercc_lin = f1 + 
+  #geom_hline(yintercept=quantile(GDI$GDI)[4], linetype="dashed", color = "darkblue") +
+  #geom_hline(yintercept=quantile(GDI$GDI)[3], linetype="dashed", color = "darkblue") +
+  geom_hline(yintercept=1.5, linetype="dotted", color = "red", size= 1) +
+  scale_color_manual("Status", values = mycolours)  +
+  scale_fill_manual("Status", values = mycolours)  +
+  xlab("log normalized counts")+ylab("GDI")+
+  theme(axis.text.x = element_text(size = si, angle = 0, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF" ),
+        axis.text.y = element_text( size = si, angle = 0, hjust = 0, vjust = .5, face = "plain", colour ="#3C5488FF"),  
+        axis.title.x = element_text( size = si, angle = 0, hjust = .5, vjust = 0, face = "plain", colour ="#3C5488FF"),
+        axis.title.y = element_text( size = si, angle = 90, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF"),
+        legend.title = element_blank(),
+        legend.text = element_text(color = "#3C5488FF",face ="italic" ),
+        legend.position = "none")  # titl)
+
+xdensityGDI_ercc <- ggplot(GDI_ercc, aes(sum.raw.norm)) + 
+  geom_density(alpha=.5, fill = "#8491B4B2", colour ="#8491B4B2" ) +
+  themex  
+
+ydensityGDI_ercc <- ggplot(GDI_ercc, aes(GDI)) + 
+  geom_density(alpha=.5, fill="#00A087FF", colour= "#00A087FF") + 
+  themey +  coord_flip() 
+  
+
+GDI_ercc_lin = xdensityGDI_ercc + plot_spacer() + GDI_ercc_lin+ ydensityGDI_ercc + 
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+
+GDI_ercc_lin  
+```
+# GDI sinthetic 800 cells 1 cl
+
+```{r echo=FALSE}
+GDI_800 = GDI_dataframe(t = "sym_E17_cl1_800cs","../results/2020.02.09/sym_E17_cl1_800cs/linear/",s = "Sy2")
+#GDI_ercc$highlight = ifelse(GDI_ercc$GDI > 1.5, "diff" , "normal")
+#dif = rownames(GDI_ercc[GDI_ercc$GDI > 1.5,])
+f1 = ggplot(GDI_800, aes(x=sum.raw.norm, y=GDI)) +  geom_point(alpha = 0.4, color = "#8491B4B2", size=2.5)
+
+GDI_800_lin = f1 + 
+  #geom_hline(yintercept=quantile(GDI$GDI)[4], linetype="dashed", color = "darkblue") +
+  #geom_hline(yintercept=quantile(GDI$GDI)[3], linetype="dashed", color = "darkblue") +
+  geom_hline(yintercept=1.5, linetype="dotted", color = "red", size= 1) +
+  scale_color_manual("Status", values = mycolours)  +
+  scale_fill_manual("Status", values = mycolours)  +
+  xlab("log normalized counts")+ylab("GDI")+
+  theme(axis.text.x = element_text(size = si, angle = 0, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF" ),
+        axis.text.y = element_text( size = si, angle = 0, hjust = 0, vjust = .5, face = "plain", colour ="#3C5488FF"),  
+        axis.title.x = element_text( size = si, angle = 0, hjust = .5, vjust = 0, face = "plain", colour ="#3C5488FF"),
+        axis.title.y = element_text( size = si, angle = 90, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF"),
+        legend.title = element_blank(),
+        legend.text = element_text(color = "#3C5488FF",face ="italic" ),
+        legend.position = "none")  # titl)
+
+
+xdensityGDI_800 <- ggplot(GDI_800, aes(sum.raw.norm)) + 
+  geom_density(alpha=.5, fill = "#8491B4B2", colour ="#8491B4B2" ) +
+  themex  
+
+ydensityGDI_800 <- ggplot(GDI_800, aes(GDI)) + 
+  geom_density(alpha=.5, fill="#00A087FF", colour= "#00A087FF") + 
+  themey +  coord_flip() 
+  
+
+GDI_800_lin = xdensityGDI_800 + plot_spacer() + GDI_800_lin+ ydensityGDI_800 + 
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+
+GDI_800_lin  
+```
+```{r echo=FALSE}
+GDI_4000 = GDI_dataframe(t = "sym_E17_cl1_4000cs","../results/2020.02.09/sym_E17_cl1_4000cs/linear/",s = "Sy2")
+#GDI_ercc$highlight = ifelse(GDI_ercc$GDI > 1.5, "diff" , "normal")
+#dif = rownames(GDI_ercc[GDI_ercc$GDI > 1.5,])
+f1 = ggplot(GDI_4000, aes(x=sum.raw.norm, y=GDI)) +  geom_point(alpha = 0.4, color = "#8491B4B2", size=2.5)
+
+GDI_4000_lin = f1 + 
+  #geom_hline(yintercept=quantile(GDI$GDI)[4], linetype="dashed", color = "darkblue") +
+  #geom_hline(yintercept=quantile(GDI$GDI)[3], linetype="dashed", color = "darkblue") +
+  geom_hline(yintercept=1.5, linetype="dotted", color = "red", size= 1) +
+  scale_color_manual("Status", values = mycolours)  +
+  scale_fill_manual("Status", values = mycolours)  +
+  xlab("log normalized counts")+ylab("GDI")+
+  theme(axis.text.x = element_text(size = si, angle = 0, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF" ),
+        axis.text.y = element_text( size = si, angle = 0, hjust = 0, vjust = .5, face = "plain", colour ="#3C5488FF"),  
+        axis.title.x = element_text( size = si, angle = 0, hjust = .5, vjust = 0, face = "plain", colour ="#3C5488FF"),
+        axis.title.y = element_text( size = si, angle = 90, hjust = .5, vjust = .5, face = "plain", colour ="#3C5488FF"),
+        legend.title = element_blank(),
+        legend.text = element_text(color = "#3C5488FF",face ="italic" ),
+        legend.position = "none")  # titl)
+
+xdensityGDI_4000 <- ggplot(GDI_4000, aes(sum.raw.norm)) + 
+  geom_density(alpha=.5, fill = "#8491B4B2", colour ="#8491B4B2" ) +
+  themex  
+
+ydensityGDI_4000 <- ggplot(GDI_4000, aes(GDI)) + 
+  geom_density(alpha=.5, fill="#00A087FF", colour= "#00A087FF") + 
+  themey +  coord_flip() 
+  
+
+GDI_4000_lin = xdensityGDI_4000 + plot_spacer() + GDI_4000_lin+ ydensityGDI_4000 + 
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+
+
+GDI_4000_lin  
+```
+
+
+
+```{r}
+library(cowplot)
+#library(gridGraphics)
+
+part1 = ggdraw() +
+  draw_plot(pp, x = .0, y = 0, width = .5, height = 1) +
+  draw_plot(ercc, x = .5, y = 0, width = .5, height = 1) +
+  draw_plot_label(label = c("A", "B"), size = 12,
+                  x = c(0, 0.5), y = c(1, 1)) 
+  
+part2 = ggdraw() +
+  draw_plot(GDI_lin, x = .0, y = 0, width = .5, height = 1) +
+  draw_plot(GDI_sqrt, x = .5, y = 0, width = .5, height = 1) +
+  draw_plot_label(label = c("C", "D"), size = 12,
+                  x = c(0, 0.5), y = c(1, 1)) 
+
+
+
+figS3 = ggdraw() +
+  draw_plot(part1, x = .0, y = 0.48, width = 1, height = 0.5) +
+  draw_plot(part2, x = .0, y = 0.02, width = 1, height = 0.46) +
+  draw_plot(legend, x = .25, y = 0, width = 0.5, height = 0.02) 
+
+figS3
+```
+

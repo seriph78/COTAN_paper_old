@@ -1,0 +1,156 @@
+---
+title: "Supplementary Fig 1"
+output: html_notebook
+---
+
+### Tipycal level of expression
+
+```{r}
+source("../src/functions.R")
+library(scales)
+library(cowplot)
+
+hk = c("Calm1","Cox6b1","Ppia","Rpl18","Cox7c","Erh","H3f3a","Tbp","Taf1b","Taf2","Gapdh","Actb")
+
+hk = c("Calm1","Cox6b1","Ppia","Rpl18","Cox7c","Erh","H3f3a","Taf1b","Taf2","Gapdh","Actb","Golph3", "Mtmr12", "Zfr", "Sub1", "Tars", "Amacr")   
+
+tf = c("Nes","Vim","Sox2","Sox1","Notch1", "Hes1","Hes5","Hes3","Pax6", "Map2","Tubb3","Neurod1","Nefm","Nefl","Dcx","Tbr1","Reln","Lhx5","Cux1","Satb2","Tle1","Mef2c","Rorb","Sox5","Bcl11b","Fezf2","Foxp2")
+
+```
+
+```{r}
+conditions = c(11,13,15,17)
+tot.plot = data.frame("counts"=double() , "gene"=character(), "t"=character(), "type"=character())
+
+
+for(t in conditions){
+  raw = read.csv(paste("../data/2018.12.06/E",t,"5_Only_Cortical_Cells_DGE.txt", sep = ""), sep = "\t", row.names = 1)
+  colnames(raw)=paste("E",t,"_",colnames(raw), sep = "")
+raw = t(raw[rownames(raw) %in% c(hk,tf),])
+  raw2 = as.data.frame(as.table(raw))
+  raw2 = raw2[,2:3]
+  
+  colnames(raw2) = c("gene", "counts")
+  raw2$t = rep(paste("E", t,".5",sep = ""),nrow(raw2))
+  raw2$type = NA
+  raw2[raw2$gene %in% hk,"type"]  = rep("hk",nrow(raw2[raw2$gene %in% hk,]))
+  raw2[raw2$gene %in% tf,"type"]  = rep("tf",nrow(raw2[raw2$gene %in% tf,]))
+  
+  tot.plot = rbind(tot.plot,raw2)
+}
+
+mytheme1 =theme(axis.text.x = element_text(size = 9, angle = 90, hjust = 1, vjust = 1, face = "plain"),
+        axis.text.y = element_text( size = 11, angle = 0, hjust = 1, vjust = 0, face = "plain"),  
+        axis.title.x = element_text( size = 11, angle = 0, hjust = .5, vjust = 0, face = "plain"),
+        axis.title.y = element_text( size = 11, angle = 00, hjust = .5, vjust = .5, face = "plain"),
+        strip.text.x = element_text(size = 11),
+        strip.text.y = element_text(size = 11),
+        axis.title.y.left = element_blank(),
+        axis.title.x.bottom  = element_blank(),
+        legend.title=element_blank(),legend.position="none",
+        legend.text=element_text(size=11)) 
+
+
+```
+
+```{r}
+hk_drs = ggplot(subset(tot.plot, type == "hk" ) ,aes(x=t, y=counts+1, fill=gene)) + 
+  geom_violin(color="black", position = "dodge",adjust=3)+ 
+  facet_grid(. ~ gene) + #scale_fill_manual(values =  mycolours)+
+  scale_y_log10(limits=c(1,500))+
+  mytheme1 + theme(axis.text.x=element_blank())
+
+hk_drs
+```
+
+```{r}
+tf1_drs = ggplot(subset(tot.plot, type == "tf" &  gene %in% tf[1:13]) ,aes(x=t, y=counts+1, fill=gene)) + geom_violin(color="black", position = "dodge",adjust=3)+ 
+  facet_grid(. ~ gene) + #scale_fill_manual(values =  mycolours)+
+  scale_y_log10(limits=c(1,500))+
+  mytheme1 + theme(axis.text.x=element_blank())
+  tf1_drs
+```
+```{r}
+tf2_drs = ggplot(subset(tot.plot, type == "tf" &  gene %in% tf[14:length(tf)]) ,aes(x=t, y=counts+1, fill=gene)) + 
+  geom_violin(color="black", position = "dodge",adjust=3)+ 
+  facet_grid(. ~ gene) + #scale_fill_manual(values =  mycolours)+
+  scale_y_log10(limits=c(1,500))+
+  mytheme1 + theme(axis.text.x=element_blank())
+
+  tf2_drs
+```
+```{r}
+conditions = c("E16.5","P0","P5")
+
+tot.plot2 = data.frame("counts"=double() , "gene"=character(), "t"=character(), "type"=character())
+
+for(t in conditions){
+  raw = as.data.frame(fread(paste("../data/2019.08.07/mouse_dentate_gyrus/separation_age/",t,".csv", sep = "")))
+rownames(raw) = raw$V1
+raw = raw[,2:ncol(raw)]
+colnames(raw)=paste(t,"_",colnames(raw), sep = "")
+
+raw = t(raw[rownames(raw) %in% c(hk,tf),])
+  raw2 = as.data.frame(as.table(raw))
+  raw2 = raw2[,2:3]
+  
+  colnames(raw2) = c("gene", "counts")
+  raw2$t = rep(t,nrow(raw2))
+  raw2$type = NA
+  raw2[raw2$gene %in% hk,"type"]  = rep("hk",nrow(raw2[raw2$gene %in% hk,]))
+  raw2[raw2$gene %in% tf,"type"]  = rep("tf",nrow(raw2[raw2$gene %in% tf,]))
+  
+  tot.plot2 = rbind(tot.plot2,raw2)
+}
+
+```
+
+```{r}
+hk_10x = ggplot(subset(tot.plot2, type == "hk" ) ,aes(x=t, y=counts+1, fill=gene)) + 
+  geom_violin(color="black", position = "dodge",adjust=3)+ 
+  facet_grid(. ~ gene) + #scale_fill_manual(values =  mycolours)+
+  scale_y_log10(limits=c(1,500))+
+  mytheme1 + theme(axis.text.x=element_blank())
+
+  hk_10x
+```
+```{r}
+tf1_10x = ggplot(subset(tot.plot2, type == "tf" &  gene %in% tf[1:13]) ,aes(x=t, y=counts+1, fill=gene)) + geom_violin(color="black", position = "dodge",adjust=3)+ 
+  facet_grid(. ~ gene) + #scale_fill_manual(values =  mycolours)+
+ scale_y_log10(limits=c(1,500))+
+  mytheme1 + theme(axis.text.x=element_blank())
+  
+  tf1_10x
+```
+```{r}
+tf2_10x = ggplot(subset(tot.plot2, type == "tf" &  gene %in% tf[14:length(tf)]) ,aes(x=t, y=counts+1, fill=gene)) + geom_violin(color="black", position = "dodge",adjust=3)+ 
+  facet_grid(. ~ gene) + #scale_fill_manual(values =  mycolours)+
+ scale_y_log10(limits=c(1,500))+
+  mytheme1 + theme(axis.text.x=element_blank())
+  
+  tf2_10x
+```
+
+```{r}
+part1 = ggdraw() +
+  draw_plot(hk_drs, x = .0, y = 0.67, width = 1, height = 0.33) +
+  draw_plot(tf1_drs, x = .0, y = 0.33, width = 1, height = .33) +
+  draw_plot(tf2_drs, x = .0, y = 0., width = 1, height = .33) +
+  draw_plot_label(label = c("A", "B","C" ), size = 14,
+                  x = c(0, 0,0), y = c(1, 0.66,0.33)) 
+part2 = ggdraw() +
+  draw_plot(hk_10x, x = .0, y = 0.67, width = 1, height = 0.33) +
+  draw_plot(tf1_10x, x = .0, y = 0.33, width = 1, height = .33) +
+  draw_plot(tf2_10x, x = .0, y = 0., width = 1, height = .33) +
+  draw_plot_label(label = c("D", "E","F"), size = 14,
+                  x = c(0, 0,0), y = c(1, 0.66,0.33)) 
+
+fig1S = ggdraw() +
+  draw_plot(part1,x = 0, y = 0, width = 0.5, height = 0.95) +
+  draw_plot(part2, x = .5, y = 0, width = 0.5, height = 0.95) +
+  draw_plot_label(label = c("Drop-Seq Datasets", "10X Datasets"), size = 14,
+                  x = c(0.05, 0.6), y = c(1, 1)) 
+
+fig1S
+```
+

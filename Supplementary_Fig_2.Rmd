@@ -1,0 +1,50 @@
+---
+title: "Supplementary Fig 2"
+output: html_notebook
+---
+
+P values violin plots for some genes
+
+```{r}
+library(ggplot2)
+library(data.table)
+
+t = 15
+dir_c = "../results/2019.12.05/" #mouse 1
+
+HKs = c("Calm1","Cox6b1","Ppia","Rpl18","Cox7c","Erh","H3f3a","Taf1b","Taf2","Gapdh","Actb","Golph3", "Mtmr12", "Zfr", "Sub1", "Tars", "Amacr") 
+
+TFs = c("Nes","Vim","Sox2","Sox1","Notch1", "Hes1","Hes5","Pax6","Map2","Tubb3","Neurod1","Nefm","Nefl","Dcx","Tbr1")
+
+pval = as.data.frame(fread(paste(dir_c,"p_value_",t,".csv.gz",sep = ""),select = c(HKs,TFs)))
+
+to.plot = as.data.frame(as.table(as.matrix(pval[colnames(pval) %in% HKs])))
+to.plot$Type = rep("CGs",nrow(to.plot))
+
+to.plot2 = as.data.frame(as.table(as.matrix(pval[colnames(pval) %in% TFs])))
+to.plot2$Type = rep("NGs",nrow(to.plot2))
+
+to.plot = rbind(to.plot,to.plot2)
+```
+
+```{r}
+si =11
+mycolours <- c("CGs" ="#00A087FF" ,"NGs" = "#E64B35FF")
+
+FigS2 = ggplot(to.plot, aes(x=Var2, y=Freq, fill=Type)) + geom_violin() + geom_boxplot(width=0.1) + facet_wrap(Type ~ . , scales = "free")+ scale_fill_manual("Status", values = mycolours) +
+  xlab("none")+
+  ylab("GDI")+
+  theme(axis.title.x = element_blank(),
+        strip.background = element_rect(fill="#8491B44C"),
+        strip.text.x = element_text(size = 11, colour = "#3C5488FF"),
+          axis.title.y = element_blank(),
+        axis.text.x = element_text(size = si, angle = 90, hjust = .5, vjust = 0.3, face = "italic", colour ="#3C5488FF" ),
+        axis.text.y = element_text( size = si, angle = 0, hjust = 0, vjust = .5, face = "plain", colour ="#3C5488FF"),  
+        legend.title = element_blank(),
+        legend.text = element_text(color = "#3C5488FF",face ="italic" ),
+        legend.position = "none") 
+
+
+FigS2
+```
+

@@ -1,0 +1,8 @@
+import pandas as pd
+import sklearn
+from sklearn.decomposition import PCA
+
+def python.PCA(file):
+f = PCA(n_components=2)
+f_principalComponents = f.fit_transform(r.t_to_clust)
+return f_principalComponents
